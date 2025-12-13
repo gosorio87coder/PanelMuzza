@@ -875,7 +875,7 @@ const App: React.FC = () => {
             setInitialBookingService('Remoción');
         } else if (specialist === 'Julissa') {
              setInitialBookingService('Cejas');
-        } else if (specialist === 'D.G.') {
+        } else if (specialist === 'Evaluación') {
             setInitialBookingService('Otro');
         } else {
             setInitialBookingService('');

@@ -223,7 +223,7 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, addB
                     
                     const endTime = new Date(startTime.getTime() + duration * 60000);
                     
-                    let specialist = 'D.G.'; // Changed default from 'Consulta gratis' to 'D.G.'
+                    let specialist = 'Evaluación'; // Changed default from 'Consulta gratis' to 'Evaluación'
                     if (indices.specialist > -1 && data[indices.specialist]?.trim()) {
                         specialist = data[indices.specialist].trim();
                     } else if (specialists.length > 0) {

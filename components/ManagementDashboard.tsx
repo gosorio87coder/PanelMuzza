@@ -368,20 +368,20 @@ const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
         const profitMargin = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
 
         // DG Conversion
-        // 1. Find all "Diagnóstico" appointments (Specialist = D.G.)
+        // 1. Find all "Evaluación" appointments (Specialist = Evaluación)
         const dgClients = new Set<string>();
         allBookings.forEach(b => {
-            if (b.specialist === 'D.G.' && b.status === 'completed') {
+            if (b.specialist === 'Evaluación' && b.status === 'completed') {
                 dgClients.add(b.client.dni);
             }
         });
 
-        // 2. Check if they returned for a PAID service (Not D.G.)
+        // 2. Check if they returned for a PAID service (Not Evaluación)
         let convertedCount = 0;
         dgClients.forEach(dni => {
             const hasPaidBooking = allBookings.some(b => 
                 b.client.dni === dni && 
-                b.specialist !== 'D.G.' && 
+                b.specialist !== 'Evaluación' && 
                 b.status !== 'cancelled'
             );
             if (hasPaidBooking) convertedCount++;
@@ -727,8 +727,8 @@ const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
 
                         {/* DG Conversion Card (Moved here) */}
                         <div className="bg-white p-6 rounded-xl shadow-lg border-t-4 border-purple-500">
-                            <h3 className="text-lg font-bold text-slate-800 mb-2">Conversión de Diagnósticos (D.G.)</h3>
-                            <p className="text-sm text-slate-500 mb-6">Porcentaje de clientes que tuvieron una cita con "D.G." y regresaron para un servicio pagado.</p>
+                            <h3 className="text-lg font-bold text-slate-800 mb-2">Conversión de Evaluaciones</h3>
+                            <p className="text-sm text-slate-500 mb-6">Porcentaje de clientes que tuvieron una cita de "Evaluación" y regresaron para un servicio pagado.</p>
                             
                             <div className="flex items-center justify-around">
                                 <div className="relative w-32 h-32 flex items-center justify-center">
@@ -750,7 +750,7 @@ const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                                 </div>
                             </div>
                             <div className="mt-6 p-3 bg-purple-50 rounded-lg text-xs text-purple-800">
-                                <strong>Nota:</strong> Se considera "conversión" si un cliente atendido por "D.G." tiene una cita posterior completada con otro especialista.
+                                <strong>Nota:</strong> Se considera "conversión" si un cliente atendido en "Evaluación" tiene una cita posterior completada con otro especialista.
                             </div>
                         </div>
                     </div>

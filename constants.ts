@@ -50,7 +50,7 @@ export const MOCK_CLIENTS = [
 export const SPECIALIST_COLORS: Record<string, { bg: string; text: string }> = {
     'Julissa': { bg: 'bg-pink-100', text: 'text-pink-800' },
     'Laura': { bg: 'bg-green-100', text: 'text-green-800' },
-    'D.G.': { bg: 'bg-blue-100', text: 'text-blue-800' },
+    'Evaluación': { bg: 'bg-blue-100', text: 'text-blue-800' },
     'default': { bg: 'bg-slate-100', text: 'text-slate-800' },
 };
 
