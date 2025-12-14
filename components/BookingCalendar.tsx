@@ -106,12 +106,23 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
   
   const { title, days } = useMemo(() => {
     const getDayISO = (date: Date) => date.getDay() === 0 ? 7 : date.getDay();
+    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    
+    // Helper for short date format: "14 Dic"
+    const formatShortDate = (d: Date) => {
+        const day = d.getDate();
+        const month = capitalize(d.toLocaleDateString('es-ES', { month: 'short' })).replace('.', '');
+        return `${day} ${month}`;
+    };
 
     switch (view) {
       case 'day': {
-        const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        // Updated to use 'short' weekday and remove dots (e.g. "dom." -> "Dom")
+        let dayName = capitalize(currentDate.toLocaleDateString('es-ES', { weekday: 'short' }));
+        dayName = dayName.replace('.', '');
+        const shortDate = formatShortDate(currentDate);
         return {
-          title: currentDate.toLocaleDateString('es-ES', options),
+          title: `${dayName} ${shortDate}, ${currentDate.getFullYear()}`,
           days: [{ date: currentDate, isCurrentMonth: true }],
         };
       }
@@ -128,9 +139,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
         const startDay = threeDays[0];
         const endDay = threeDays[2];
-        const options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric' };
+        
         return {
-          title: `${startDay.toLocaleDateString('es-ES', options)} - ${endDay.toLocaleDateString('es-ES', options)}, ${currentDate.getFullYear()}`,
+          title: `${formatShortDate(startDay)} - ${formatShortDate(endDay)}, ${currentDate.getFullYear()}`,
           days: threeDays.map(d => ({ date: d, isCurrentMonth: true })),
         };
       }
@@ -138,9 +149,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         const weekDays = getWeek(currentDate).filter(d => weeklySchedule[getDayISO(d)]?.isOpen);
         const startDay = weekDays[0];
         const endDay = weekDays[weekDays.length - 1];
-        const options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric' };
+        
         return {
-          title: `${startDay.toLocaleDateString('es-ES', options)} - ${endDay.toLocaleDateString('es-ES', options)}, ${currentDate.getFullYear()}`,
+          title: `${formatShortDate(startDay)} - ${formatShortDate(endDay)}, ${currentDate.getFullYear()}`,
           days: weekDays.map(d => ({ date: d, isCurrentMonth: true })),
         };
       }
@@ -148,7 +159,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       default: {
         const monthGrid = getMonthGrid(currentDate);
         return {
-          title: `${currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}`,
+          title: capitalize(currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })),
           days: monthGrid.flat().map(d => ({ date: d, isCurrentMonth: d.getMonth() === currentDate.getMonth() })),
         };
       }
@@ -275,11 +286,16 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         return <div className="text-center p-10 text-slate-500">Seleccione al menos una especialista para ver la agenda.</div>
     }
 
+    // Dynamic width calculation for mobile responsiveness
+    // 140px minimum per specialist column to ensure readability on mobile
+    const minColumnWidth = 140; 
+    const totalMinWidth = days.length * specialistsToShow.length * minColumnWidth;
+
     return (
         <div className="flex">
-            {/* Time Gutter */}
-            <div className="w-16 flex-shrink-0 text-right">
-                 <div className="sticky top-0 z-20 bg-white">
+            {/* Time Gutter - Sticky or Fixed */}
+            <div className="w-16 flex-shrink-0 text-right bg-white z-20">
+                 <div className="sticky top-0 z-30 bg-white">
                     <div className="h-16 border-b border-slate-200"></div> {/* Day Header Spacer */}
                     {/* Specialist header spacer - must match height of specialist names */}
                     <div className="py-1 border-b border-r border-slate-200">
@@ -294,11 +310,14 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                     ))}
                  </div>
             </div>
-            {/* Main Calendar Grid */}
+            {/* Main Calendar Grid - Scrollable */}
             <div className="flex-1 overflow-x-auto">
                 <div 
                     className="grid" 
-                    style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, minWidth: `${days.length * 200}px` }}
+                    style={{ 
+                        gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, 
+                        minWidth: `${Math.max(totalMinWidth, 300)}px` // Ensure it doesn't collapse on mobile
+                    }}
                 >
                     {days.map(({ date }, index) => {
                         const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -319,7 +338,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                                         style={{ gridTemplateColumns: `repeat(${specialistsToShow.length}, minmax(0, 1fr))` }}
                                     >
                                         {specialistsToShow.map(specialist => (
-                                            <div key={specialist} className="text-center text-xs font-bold text-slate-500 py-1 border-b border-r border-slate-200">{specialist}</div>
+                                            <div key={specialist} className="text-center text-xs font-bold text-slate-500 py-1 border-b border-r border-slate-200 truncate px-1" title={specialist}>
+                                                {specialist}
+                                            </div>
                                         ))}
                                     </div>
                                 </div>
@@ -422,59 +443,6 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
     )
   };
 
-  const renderAgendaView = () => {
-    return (
-      <div className="space-y-4">
-        {days.map(({ date }) => {
-          const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-          const dayBookings = (bookingsByDate[dateKey] || []).sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-          if (dayBookings.length === 0) return null;
-          
-          return (
-            <div key={dateKey}>
-              <h3 className="font-bold text-lg text-slate-700 bg-slate-100 p-2 rounded-md sticky top-0 z-10">
-                {date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </h3>
-              <div className="space-y-2 mt-2">
-                {dayBookings.map(booking => {
-                    const { containerClass, isCompleted, isNoShow } = getBookingStyles(booking);
-                    const startTime = new Date(booking.startTime);
-                    const endTime = new Date(booking.endTime);
-                    
-                    return(
-                      <div key={booking.id} onClick={() => onBookingClick(booking)} className={`p-3 rounded-lg flex flex-col sm:flex-row sm:items-center sm:space-x-4 cursor-pointer ${containerClass} ${isCompleted ? 'border-l-4 border-green-500' : ''}`}>
-                         <div className="flex-shrink-0 w-full sm:w-20 sm:text-center flex items-center sm:flex-col sm:items-center gap-2 mb-2 sm:mb-0">
-                            <p className="font-bold text-sm">{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                            <p className="text-xs">- {endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                         </div>
-                         <div className={`flex-1 sm:border-l-2 sm:border-purple-200 sm:pl-4 w-full`}>
-                           <div className="flex justify-between items-center">
-                               <p className="font-bold">{booking.client.name}</p>
-                               {isCompleted && <span className="text-xs font-bold text-green-600 bg-white px-2 py-0.5 rounded-full border border-green-200">Completada</span>}
-                               {isNoShow && <span className="text-xs font-bold text-gray-500 bg-white px-2 py-0.5 rounded-full border border-gray-200">No Vino</span>}
-                           </div>
-                           <p className="text-sm">{booking.procedure}</p>
-                           <p className="text-xs opacity-80">con {booking.specialist}</p>
-                           {booking.comments && (
-                                <div className="mt-2 flex items-start space-x-2 p-2 bg-white/40 rounded-md">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 opacity-70 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.08-3.242A8.92 8.92 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.75 9.25a.75.75 0 01.75-.75h8.5a.75.75 0 010 1.5h-8.5a.75.75 0 01-.75-.75zm0 2.5a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5h-4.5a.75.75 0 01-.75-.75z" clipRule="evenodd" />
-                                    </svg>
-                                    <p className="text-xs italic opacity-90 whitespace-pre-wrap">{booking.comments}</p>
-                                </div>
-                            )}
-                         </div>
-                      </div>
-                    )
-                })}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    );
-  }
-
   const SpecialistToggle: React.FC<{ specialist: string }> = ({ specialist }) => {
     const isVisible = visibleSpecialists.includes(specialist);
     return (
@@ -541,15 +509,10 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         </div>
       </div>
 
-      {/* Desktop View */}
-      <div className="hidden lg:block">
+      {/* Unified View for Desktop and Mobile */}
+      <div>
           {view === 'month' ? renderMonthView() : renderTimeGridView()}
       </div>
-
-       {/* Mobile View */}
-       <div className="lg:hidden">
-          {view === 'month' ? renderMonthView() : renderAgendaView()}
-       </div>
 
        {/* Floating Action Button (+) for New Booking */}
        <button
