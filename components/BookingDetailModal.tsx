@@ -51,6 +51,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
 
   if (!booking) return null;
 
+  const isBlock = booking.serviceType === 'Bloqueo';
   const colors = SERVICE_TYPE_COLORS[booking.serviceType] || SERVICE_TYPE_COLORS.default;
   
   const formattedTime = (date: Date) => new Date(date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -113,7 +114,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
   };
 
   const handleWhatsAppReminder = () => {
-      if (!booking.client.phone) return;
+      if (!booking.client.phone || isBlock) return;
       let phone = booking.client.phone.replace(/\D/g, '');
       if (phone.length === 9) phone = '51' + phone;
       const firstName = booking.client.name.split(' ')[0];
@@ -146,11 +147,15 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
         <header className={`flex justify-between items-center p-5 rounded-t-2xl ${colors.bg}`}>
           <div className="flex items-center space-x-3">
             <div className={`p-2 rounded-full bg-white`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                {isBlock ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                )}
             </div>
             <div>
               <h2 className={`text-xl font-bold ${colors.text}`}>
-                  {booking.bookingCode ? `Reserva #${booking.bookingCode}` : 'Detalle de la Reserva'}
+                  {isBlock ? 'Horario Bloqueado' : (booking.bookingCode ? `Reserva #${booking.bookingCode}` : 'Detalle de la Reserva')}
               </h2>
               <p className={`text-sm ${colors.text} opacity-80`}>{booking.serviceType}</p>
             </div>
@@ -163,21 +168,28 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
         {/* Main Content */}
         {!isConfirming ? (
             <div className="overflow-y-auto flex-grow p-8 space-y-6">
-                <div className="flex justify-between items-center">
-                    {getStatusBadge()}
-                    {booking.status === 'completed' && <span className="text-xs text-slate-500">Duración Real: {booking.actualDuration} min</span>}
-                </div>
+                {!isBlock && (
+                    <div className="flex justify-between items-center">
+                        {getStatusBadge()}
+                        {booking.status === 'completed' && <span className="text-xs text-slate-500">Duración Real: {booking.actualDuration} min</span>}
+                    </div>
+                )}
 
                 <DetailRow icon={CalendarIcon} label="Fecha" value={formattedDate(booking.startTime)} />
                 <DetailRow icon={ClockIcon} label="Horario" value={`${formattedTime(booking.startTime)} - ${formattedTime(booking.endTime)}`} />
-                <DetailRow icon={TagIcon} label="Servicio" value={`${booking.procedure} (con ${booking.specialist})`} />
-                <DetailRow icon={UserIcon} label="Cliente" value={
-                    <div className="flex flex-col">
-                        <span className="font-semibold">{booking.client.name}</span>
-                        <span className="text-sm text-slate-500">DNI: {booking.client.dni}</span>
-                        <span className="text-sm text-slate-500">Cel: {booking.client.phone}</span>
-                    </div>
-                } />
+                <DetailRow icon={TagIcon} label={isBlock ? "Motivo" : "Servicio"} value={`${booking.procedure} ${isBlock ? '' : `(con ${booking.specialist})`}`} />
+                
+                {isBlock ? (
+                    <DetailRow icon={UserIcon} label="Responsable" value={booking.specialist} />
+                ) : (
+                    <DetailRow icon={UserIcon} label="Cliente" value={
+                        <div className="flex flex-col">
+                            <span className="font-semibold">{booking.client.name}</span>
+                            <span className="text-sm text-slate-500">DNI: {booking.client.dni}</span>
+                            <span className="text-sm text-slate-500">Cel: {booking.client.phone}</span>
+                        </div>
+                    } />
+                )}
 
                 {booking.downPayment && (
                     <DetailRow icon={PaymentIcon} label="Pago a Cuenta (Adelanto)" value={
@@ -188,8 +200,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                     } />
                 )}
 
-                {/* NEW RECONFIRMATION SECTION */}
-                {booking.status === 'scheduled' && onReconfirm && (
+                {/* RECONFIRMATION SECTION (Hide for Blocks) */}
+                {!isBlock && booking.status === 'scheduled' && onReconfirm && (
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                         <div className="flex items-center justify-between mb-3">
                             <h4 className="text-sm font-bold text-slate-700">Estado de Reconfirmación</h4>
@@ -244,7 +256,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                 )}
             </div>
         ) : (
-            // CONFIRMATION FLOW (2 Steps)
+            // CONFIRMATION FLOW (Only accessible for non-blocks)
             <div className="overflow-y-auto flex-grow p-8 space-y-6">
                 {step === 1 && (
                     <div className="animate-fade-in">
@@ -341,8 +353,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
         <footer className="p-5 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
           {!isConfirming ? (
             <div className="flex flex-col gap-5">
-              {/* Workflow Actions - Only for Scheduled */}
-              {booking.status === 'scheduled' && (
+              {/* Workflow Actions - Only for Scheduled and NON-BLOCK */}
+              {!isBlock && booking.status === 'scheduled' && (
                 <div className="grid grid-cols-2 sm:flex sm:justify-end gap-3 w-full">
                    <button 
                        type="button" 
@@ -375,12 +387,13 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                 </div>
               )}
 
-              {booking.status === 'scheduled' && <hr className="border-slate-200" />}
+              {/* Separator if actions were shown */}
+              {!isBlock && booking.status === 'scheduled' && <hr className="border-slate-200" />}
 
               {/* Admin Actions */}
               <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4">
                 <button type="button" onClick={handleDelete} className="text-red-500 font-medium hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors text-sm w-full sm:w-auto">
-                    Eliminar Reserva
+                    {isBlock ? 'Eliminar Bloqueo' : 'Eliminar Reserva'}
                 </button>
 
                 <div className="flex w-full sm:w-auto gap-3">
@@ -394,7 +407,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
               </div>
             </div>
           ) : (
-              // Actions for Confirmation Flow
+              // Actions for Confirmation Flow (Step 1 and 2)
+              // Note: Confirmation flow is never triggered for Blocks because button is hidden
               <div className="flex justify-between w-full gap-4">
                   {step === 2 && (
                       <button onClick={() => setStep(1)} className="px-6 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-50">

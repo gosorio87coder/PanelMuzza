@@ -207,15 +207,18 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
       const colors = SERVICE_TYPE_COLORS[booking.serviceType] || SERVICE_TYPE_COLORS.default;
       const isCompleted = booking.status === 'completed';
       const isNoShow = booking.status === 'noshow';
+      const isBlock = booking.serviceType === 'Bloqueo';
       
       let containerClass = `${colors.bg} ${colors.text}`;
       if (isNoShow) {
           containerClass = "bg-gray-200 text-gray-500 line-through border border-gray-300";
       } else if (isCompleted) {
           containerClass = `${colors.bg} ${colors.text} border border-green-500`;
+      } else if (isBlock) {
+          containerClass = "bg-gray-600 text-white border border-gray-700 shadow-none opacity-90";
       }
 
-      return { containerClass, isCompleted, isNoShow };
+      return { containerClass, isCompleted, isNoShow, isBlock };
   }
 
   const renderMonthView = () => {
@@ -258,19 +261,27 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                         </div>
                         <div className="px-1 space-y-0.5 relative z-10 pointer-events-none">
                            {dayBookings.slice(0, 2).map(booking => {
-                                const { containerClass, isCompleted } = getBookingStyles(booking);
+                                const { containerClass, isCompleted, isBlock } = getBookingStyles(booking);
                                 return (
                                     <div key={booking.id} onClick={(e) => { e.stopPropagation(); onBookingClick(booking); }} className={`p-0.5 rounded text-[10px] truncate ${containerClass} cursor-pointer flex items-center gap-1 pointer-events-auto`}>
-                                        {isCompleted && (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-green-600 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
+                                        {isBlock ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 flex-shrink-0 opacity-75" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                                        ) : (
+                                            <>
+                                                {isCompleted && (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-green-600 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                    </svg>
+                                                )}
+                                                {booking.reconfirmationStatus === 'confirmed' && (
+                                                    <span className="text-blue-600 font-bold">✓</span>
+                                                )}
+                                            </>
                                         )}
-                                        {booking.reconfirmationStatus === 'confirmed' && (
-                                            <span className="text-blue-600 font-bold">✓</span>
-                                        )}
-                                        <span className="font-semibold truncate">{booking.client.name.split(' ')[0]}</span>
-                                        <span className="ml-auto hidden sm:inline flex-shrink-0">{new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        <span className="font-semibold truncate">
+                                            {isBlock ? booking.procedure : booking.client.name.split(' ')[0]}
+                                        </span>
+                                        {!isBlock && <span className="ml-auto hidden sm:inline flex-shrink-0">{new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
                                     </div>
                                 )
                            })}
@@ -289,8 +300,6 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         return <div className="text-center p-10 text-slate-500">Seleccione al menos una especialista para ver la agenda.</div>
     }
 
-    // Dynamic width calculation for mobile responsiveness
-    // 140px minimum per specialist column to ensure readability on mobile
     const minColumnWidth = 140; 
     const totalMinWidth = days.length * specialistsToShow.length * minColumnWidth;
 
@@ -404,7 +413,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                                                 
                                                 if (startTime.getHours() < startHour || startTime.getHours() >= endHour) return null;
 
-                                                const { containerClass, isCompleted } = getBookingStyles(booking);
+                                                const { containerClass, isCompleted, isBlock } = getBookingStyles(booking);
 
                                                 return (
                                                     <div
@@ -418,14 +427,17 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex items-center gap-1 overflow-hidden">
-                                                                {/* RECONFIRMATION ICON */}
-                                                                {booking.reconfirmationStatus === 'confirmed' && (
-                                                                    <span title="Reconfirmado" className="text-blue-600 font-extrabold flex-shrink-0">✓✓</span>
+                                                                {isBlock ? (
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                                                                ) : (
+                                                                    <>
+                                                                        {booking.reconfirmationStatus === 'confirmed' && <span className="text-blue-600 font-extrabold flex-shrink-0">✓✓</span>}
+                                                                        {booking.reconfirmationStatus === 'rejected' && <span className="text-red-500 font-bold flex-shrink-0">?</span>}
+                                                                    </>
                                                                 )}
-                                                                {booking.reconfirmationStatus === 'rejected' && (
-                                                                    <span title="No reconfirmado" className="text-red-500 font-bold flex-shrink-0">?</span>
-                                                                )}
-                                                                <p className="font-bold text-xs truncate">{booking.client.name}</p>
+                                                                <p className="font-bold text-xs truncate">
+                                                                    {isBlock ? booking.procedure : booking.client.name}
+                                                                </p>
                                                             </div>
                                                             {isCompleted && (
                                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-700 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -433,7 +445,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                                                                 </svg>
                                                             )}
                                                         </div>
-                                                        <p className="text-[10px] truncate">{booking.procedure}</p>
+                                                        {!isBlock && <p className="text-[10px] truncate">{booking.procedure}</p>}
                                                         <p className="text-[10px] font-mono">{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                                         {booking.comments && (
                                                             <p className="text-[10px] italic mt-1 pt-1 border-t border-current border-opacity-20 truncate" title={booking.comments}>

@@ -60,6 +60,7 @@ export const SERVICE_TYPE_COLORS: Record<string, { bg: string; text: string }> =
     'Remoción': { bg: 'bg-red-100', text: 'text-red-800' },
     'Pestañas': { bg: 'bg-sky-100', text: 'text-sky-800' },
     'Otro': { bg: 'bg-slate-100', text: 'text-slate-800' },
+    'Bloqueo': { bg: 'bg-gray-200', text: 'text-gray-700' }, // NEW COLOR FOR BLOCKS
     'default': { bg: 'bg-slate-100', text: 'text-slate-800' },
 };
 
