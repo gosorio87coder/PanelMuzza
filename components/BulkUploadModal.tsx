@@ -70,17 +70,24 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, addB
             const d = new Date(parseInt(parts[1]), parseInt(parts[2]) - 1, parseInt(parts[3]));
             if (!isNaN(d.getTime())) return d;
         }
-        // Fallback for other formats like ISO or Excel's numeric date
+        // Fallback for other formats like ISO
         const d = new Date(trimmedDate);
         if (!isNaN(d.getTime())) return d;
 
         // Handle Excel numeric date format
         const excelDate = parseFloat(trimmedDate);
         if (!isNaN(excelDate)) {
+             // Excel date is days since 1900-01-01. 
+             // We use UTC calculation to avoid timezone shifts pushing the date to previous day
              const utc_days  = Math.floor(excelDate - 25569);
              const utc_value = utc_days * 86400;                                        
              const date_info = new Date(utc_value * 1000);
-             if (!isNaN(date_info.getTime())) return date_info;
+             
+             // Compensate for local timezone offset to ensure the day remains correct in local context
+             const offset = date_info.getTimezoneOffset() * 60000;
+             const localDate = new Date(date_info.getTime() + offset);
+
+             if (!isNaN(localDate.getTime())) return localDate;
         }
 
         return null;

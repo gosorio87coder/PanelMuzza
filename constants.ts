@@ -72,4 +72,5 @@ export const SOURCE_GROUPS: Record<string, string[]> = {
 export const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 const currentYear = new Date().getFullYear();
-export const YEARS = [currentYear - 1, currentYear, currentYear + 1];
+// Generate a range of years: 5 years back and 1 year forward
+export const YEARS = Array.from({ length: 7 }, (_, i) => currentYear - 5 + i);
