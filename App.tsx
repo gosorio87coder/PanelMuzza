@@ -14,13 +14,82 @@ import ManagementDashboard from './components/ManagementDashboard';
 import FollowUpDashboard from './components/FollowUpDashboard';
 import ExpensesDashboard from './components/ExpensesDashboard';
 import Login from './components/Login';
-import { SERVICE_TYPES, PROCEDURES_BY_SERVICE, CASH_METHODS, DIGITAL_METHODS, CARD_METHODS, DEFAULT_EXPENSE_CATEGORIES, MONTHS, YEARS } from './constants';
+import { SERVICE_TYPES, PROCEDURES_BY_SERVICE, CASH_METHODS, DIGITAL_METHODS, CARD_METHODS, DEFAULT_EXPENSE_CATEGORIES, MONTHS, YEARS, SERVICE_TYPE_COLORS } from './constants';
 
 // Declare XLSX from the script loaded in index.html
 declare const XLSX: any;
 
 type View = 'home' | 'sales' | 'bookings' | 'cashControl' | 'configuration' | 'management' | 'followUp' | 'expenses';
 type BookingView = 'day' | '3day' | 'week' | 'month';
+type BookingDisplayMode = 'calendar' | 'list'; // NEW: Toggle between calendar and list
+
+// NEW: Custom Modal for Factory Reset
+const ResetConfirmationModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: () => void }> = ({ isOpen, onClose, onConfirm }) => {
+    const [confirmText, setConfirmText] = useState('');
+    
+    if (!isOpen) return null;
+
+    const isMatch = confirmText === 'RESET';
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-[70] p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-4 border-red-600" onClick={e => e.stopPropagation()}>
+                <div className="p-6 text-center">
+                    <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                        <svg className="h-10 w-10 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-900 mb-2">¿Restablecimiento de Fábrica?</h3>
+                    <p className="text-sm text-slate-500 mb-6">
+                        Esta acción es <strong>IRREVERSIBLE</strong>. Se eliminarán permanentemente:
+                        <ul className="list-disc list-inside mt-2 text-left px-4 font-mono text-xs text-red-700 bg-red-50 py-2 rounded">
+                            <li>Todas las Ventas</li>
+                            <li>Todas las Reservas</li>
+                            <li>Todos los Clientes</li>
+                            <li>Todos los Gastos</li>
+                            <li>Historial de Seguimiento</li>
+                        </ul>
+                    </p>
+                    
+                    <div className="mb-6">
+                        <label className="block text-xs font-bold text-slate-700 mb-2">
+                            Escribe la palabra <span className="text-red-600 font-mono text-base">RESET</span> para confirmar:
+                        </label>
+                        <input 
+                            type="text" 
+                            value={confirmText}
+                            onChange={(e) => setConfirmText(e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-center font-bold text-xl uppercase tracking-widest focus:border-red-500 focus:ring-red-500"
+                            placeholder="RESET"
+                            autoFocus
+                        />
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={onClose}
+                            className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={() => { if(isMatch) { onConfirm(); onClose(); } }}
+                            disabled={!isMatch}
+                            className={`flex-1 px-4 py-3 font-bold rounded-xl transition-all shadow-lg ${
+                                isMatch 
+                                ? 'bg-red-600 text-white hover:bg-red-700 transform hover:scale-105' 
+                                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            }`}
+                        >
+                            BORRAR TODO
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const App: React.FC = () => {
   // --- AUTH STATE ---
@@ -48,6 +117,8 @@ const App: React.FC = () => {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+  // NEW: Reset Modal State
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   // Editing & History State
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
@@ -73,6 +144,8 @@ const App: React.FC = () => {
 
   // Booking State
   const [bookingView, setBookingView] = useState<BookingView>('3day');
+  const [bookingDisplayMode, setBookingDisplayMode] = useState<BookingDisplayMode>('calendar'); // NEW
+  const [bookingSearchTerm, setBookingSearchTerm] = useState(''); // NEW
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null); 
   
   // --- Configuration State ---
@@ -154,7 +227,6 @@ const App: React.FC = () => {
 
     setIsLoading(true);
     try {
-        // Local variable check to satisfy TS and prevent runtime crash
         const client = supabase;
         if (!client) {
             setIsLoading(false);
@@ -233,7 +305,10 @@ const App: React.FC = () => {
                 creamSold: s.cream_sold,
                 comments: s.comments,
                 createdBy: s.created_by,
-                createdByName: s.creator?.name
+                createdByName: s.creator?.name,
+                // NEW FIELDS
+                bookingId: s.booking_id,
+                transactionType: s.transaction_type
             }));
             setSales(mappedSales);
         }
@@ -247,6 +322,7 @@ const App: React.FC = () => {
         if (bookingsData) {
             const mappedBookings: Booking[] = bookingsData.map((b: any) => ({
                 id: b.id,
+                bookingCode: b.booking_code, // NEW FIELD
                 specialist: b.specialist,
                 serviceType: b.service_type,
                 procedure: b.procedure_name,
@@ -261,6 +337,7 @@ const App: React.FC = () => {
                 status: b.status,
                 actualDuration: b.actual_duration,
                 downPayment: b.down_payment,
+                reconfirmationStatus: b.reconfirmation_status, // NEW
                 comments: b.comments,
                 createdAt: new Date(b.created_at),
                 createdBy: b.created_by,
@@ -323,35 +400,30 @@ const App: React.FC = () => {
   }, [fetchData, session]);
 
 
-  // Helper: Upsert Client to ensure relational integrity
+  // Helper: Upsert Client
   const upsertClient = async (clientData: Client): Promise<string | null> => {
       try {
           const client = supabase;
           if (!client) return null;
-          // Check if exist
           const { data: existing } = await client.from('clients').select('id').eq('dni', clientData.dni).single();
           if (existing) {
               return existing.id;
           } else {
-              // Insert
               const { data: newClient, error } = await client.from('clients').insert({
                   dni: clientData.dni,
                   name: clientData.name,
                   phone: clientData.phone,
                   source: clientData.source
               }).select('id').single();
-              
               if (error) throw error;
               return newClient ? newClient.id : null;
           }
       } catch (e) {
           console.error("Error saving client:", e);
-          alert("Error al guardar cliente. Verifique el DNI.");
           return null;
       }
   };
 
-  // Derived Configuration (for backward compatibility)
   const activeDays = useMemo(() => {
     return (Object.values(weeklySchedule) as DaySchedule[]).filter(d => d.isOpen).map(d => d.dayId);
   }, [weeklySchedule]);
@@ -373,7 +445,6 @@ const App: React.FC = () => {
   const [visibleSpecialists, setVisibleSpecialists] = useState<string[]>([]);
 
   useEffect(() => {
-    // Initialize visible specialists once data is loaded
     if (visibleSpecialists.length === 0 && activeSpecialists.length > 0) {
         setVisibleSpecialists(activeSpecialists);
     }
@@ -414,18 +485,22 @@ const App: React.FC = () => {
         payments: sale.payments,
         cream_sold: sale.creamSold,
         comments: sale.comments,
-        created_by: session.user.id // Track User
+        created_by: session.user.id,
+        // NEW
+        booking_id: sale.bookingId,
+        transaction_type: sale.transactionType
     }).select('id').single();
 
     if (error) {
         console.error(error);
-        alert('Error al guardar venta en base de datos.');
+        alert('Error al guardar transacción.');
     } else if (data) {
-        // Optimistic Update or Refetch
         const newSaleWithId = { ...sale, id: data.id, createdBy: session.user.id, createdByName: userProfile?.name };
         setSales(prev => [newSaleWithId, ...prev]);
-        alert('Venta registrada con éxito!');
-        setFollowUpTracking(prev => ({ ...prev, [data.id]: { status: 'PENDIENTE' } }));
+        alert('Transacción registrada con éxito!');
+        if(!sale.bookingId) { // Only track unrelated sales automatically, booking sales are tracked via booking status
+             setFollowUpTracking(prev => ({ ...prev, [data.id]: { status: 'PENDIENTE' } }));
+        }
     }
   };
 
@@ -437,7 +512,8 @@ const App: React.FC = () => {
         procedure_name: updatedSale.procedure,
         payments: updatedSale.payments,
         cream_sold: updatedSale.creamSold,
-        comments: updatedSale.comments
+        comments: updatedSale.comments,
+        transaction_type: updatedSale.transactionType
     }).eq('id', updatedSale.id);
 
     if (error) {
@@ -468,6 +544,7 @@ const App: React.FC = () => {
   };
   
   const addBulkSales = async (newSales: Sale[]) => {
+      // (Simplified for brevity, logic remains similar but adds new fields if available)
       const client = supabase;
       if (!client || !session) return;
       setIsLoading(true);
@@ -514,7 +591,8 @@ const App: React.FC = () => {
                       procedure_name: booking.procedure,
                       status: 'completed',
                       comments: 'Carga Masiva',
-                      created_by: session.user.id
+                      created_by: session.user.id,
+                      booking_code: Math.floor(100000 + Math.random() * 900000).toString() // Generate random code
                   });
               }
           }
@@ -525,12 +603,116 @@ const App: React.FC = () => {
           setIsLoading(false);
       }
   };
+  
+  // NEW: HANDLE BULK DELETE (ADMIN ONLY)
+  const handleBulkDelete = async () => {
+      const client = supabase;
+      if (!client || userProfile?.role !== 'admin') return;
+      
+      setIsLoading(true);
+      try {
+          // 1. Delete Sales tagged as 'Carga Masiva'
+          const { error: salesError, count: salesCount } = await client
+              .from('sales')
+              .delete({ count: 'exact' })
+              .ilike('comments', '%Carga Masiva%');
+          
+          if (salesError) throw salesError;
+
+          // 2. Delete Bookings tagged as 'Carga Masiva' OR 'Generado desde carga histórica'
+          const { error: bookingsError, count: bookingsCount } = await client
+              .from('bookings')
+              .delete({ count: 'exact' })
+              .or('comments.ilike.%Carga Masiva%,comments.ilike.%Generado desde carga histórica%');
+
+          if (bookingsError) throw bookingsError;
+
+          await fetchData();
+          alert(`Limpieza completada.\nSe eliminaron:\n- ${salesCount} Ventas\n- ${bookingsCount} Reservas\n\n(Los clientes se mantuvieron intactos)`);
+
+      } catch (e: any) {
+          console.error(e);
+          alert(`Error al eliminar carga masiva: ${e.message}`);
+      } finally {
+          setIsLoading(false);
+      }
+  };
+  
+  // NEW: EXECUTE FACTORY RESET
+  const executeFactoryReset = async () => {
+      const client = supabase;
+      if (!client || userProfile?.role !== 'admin') return;
+
+      setIsLoading(true);
+      try {
+          console.log("Starting Factory Reset...");
+
+          // 1. Follow Up Tracking
+          const { error: err1 } = await client.from('follow_up_tracking').delete().neq('sale_id', '00000000-0000-0000-0000-000000000000'); 
+          if(err1) throw new Error(`Error borrando Seguimiento: ${err1.message}`);
+
+          // 2. Sales
+          const { error: err2 } = await client.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          if(err2) throw new Error(`Error borrando Ventas: ${err2.message}`);
+
+          // 3. Bookings
+          const { error: err3 } = await client.from('bookings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          if(err3) throw new Error(`Error borrando Reservas: ${err3.message}`);
+
+          // 4. Expenses
+          const { error: err4 } = await client.from('expenses').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          if(err4) console.error("Error borrando gastos (no crítico):", err4);
+
+          // 5. Withdrawals
+          const { error: err5 } = await client.from('withdrawals').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          if(err5) console.error("Error borrando retiros (no crítico):", err5);
+
+          // 6. Clients
+          const { error: err6 } = await client.from('clients').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          if(err6) throw new Error(`Error borrando Clientes: ${err6.message}`);
+
+          // Refresh Local State
+          await fetchData();
+          
+          alert('✅ SISTEMA RESTABLECIDO CORRECTAMENTE.\n\nLa base de datos está vacía.');
+
+      } catch (e: any) {
+          console.error(e);
+          alert(`❌ Error durante el reseteo: ${e.message}\n\nVerifique la consola para más detalles.`);
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  // Generate Booking Code: Format MMYY-XXX (Sequential)
+  const generateBookingCode = (date: Date): string => {
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yy = String(date.getFullYear()).slice(-2);
+      const prefix = `${mm}${yy}`;
+
+      // Find existing bookings with this prefix
+      const existingCodes = bookings
+          .filter(b => b.bookingCode && b.bookingCode.startsWith(prefix + '-'))
+          .map(b => {
+              const parts = b.bookingCode!.split('-');
+              return parseInt(parts[1], 10);
+          })
+          .filter(n => !isNaN(n));
+
+      const maxSequence = existingCodes.length > 0 ? Math.max(...existingCodes) : 0;
+      const nextSequence = maxSequence + 1;
+
+      return `${prefix}-${String(nextSequence).padStart(3, '0')}`;
+  };
 
   const addBooking = async (booking: Booking, downPaymentSale?: Sale) => {
     const client = supabase;
     if (!client || !session) return;
     const clientId = await upsertClient(booking.client);
     if (!clientId) return;
+
+    // Generate Code based on Booking Date (Appointment Date)
+    const code = generateBookingCode(booking.startTime);
 
     const { data: bookingData, error: bookingError } = await client.from('bookings').insert({
         client_id: clientId,
@@ -542,7 +724,8 @@ const App: React.FC = () => {
         status: 'scheduled',
         comments: booking.comments,
         down_payment: booking.downPayment,
-        created_by: session.user.id
+        created_by: session.user.id,
+        booking_code: code // Save code
     }).select('id').single();
 
     if (bookingError) {
@@ -555,16 +738,24 @@ const App: React.FC = () => {
         const newBooking = { 
             ...booking, 
             id: bookingData.id, 
+            bookingCode: code,
             status: 'scheduled' as const,
             createdBy: session.user.id,
             createdByName: userProfile?.name
         };
         setBookings(prev => [...prev, newBooking].sort((a, b) => a.startTime.getTime() - b.startTime.getTime()));
 
+        // Link Sale to Booking
         if (downPaymentSale) {
-            await addSale(downPaymentSale);
+            const saleWithLink = { 
+                ...downPaymentSale, 
+                bookingId: bookingData.id, 
+                transactionType: 'adelanto' as const,
+                comments: `Adelanto Reserva #${code} - ${downPaymentSale.comments || ''}`
+            };
+            await addSale(saleWithLink);
         } else {
-            alert('Reserva registrada con éxito!');
+            alert(`Reserva registrada con éxito! Código: ${code}`);
         }
     }
   };
@@ -590,32 +781,70 @@ const App: React.FC = () => {
       } else {
           setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b).sort((a, b) => a.startTime.getTime() - b.startTime.getTime()));
           if (downPaymentSale) {
-             await addSale(downPaymentSale);
+             const saleWithLink = { 
+                ...downPaymentSale, 
+                bookingId: updatedBooking.id, 
+                transactionType: 'adelanto' as const,
+                comments: `Adelanto Reserva #${updatedBooking.bookingCode || ''} - ${downPaymentSale.comments || ''}`
+             };
+             await addSale(saleWithLink);
           } else {
              alert('Reserva actualizada con éxito!');
           }
       }
   };
-
-  const confirmBooking = async (bookingId: string, actualDuration: number) => {
+  
+  // NEW: Update Reconfirmation Status (WITH OPTIMISTIC UI FIX)
+  const updateBookingReconfirmation = async (bookingId: string, status: 'confirmed' | 'rejected' | null) => {
       const client = supabase;
       if (!client) return;
+      
+      const nextStatus = status || undefined; // Convert null to undefined for state
+
+      // 1. Update the Main List
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, reconfirmationStatus: nextStatus } : b));
+      
+      // 2. Update the Currently Open Modal (Fixes "button not working" visual bug)
+      if (viewingBooking && viewingBooking.id === bookingId) {
+          setViewingBooking(prev => prev ? { ...prev, reconfirmationStatus: nextStatus } : null);
+      }
+
+      // 3. Persist to DB
+      const { error } = await client.from('bookings').update({
+          reconfirmation_status: status
+      }).eq('id', bookingId);
+
+      if (error) {
+          console.error("Error DB Reconfirm:", error);
+          alert('Error al guardar en base de datos. Verifique que la columna "reconfirmation_status" exista en la tabla "bookings".');
+      }
+  };
+
+  const confirmBooking = async (booking: Booking, actualDuration: number, finalPayment?: Sale) => {
+      const client = supabase;
+      if (!client) return;
+      
       const { error } = await client.from('bookings').update({
           status: 'completed',
           actual_duration: actualDuration
-      }).eq('id', bookingId);
+      }).eq('id', booking.id);
 
       if (error) {
            console.error(error);
            alert('Error al confirmar reserva.');
       } else {
           setBookings(prev => prev.map(b => {
-            if (b.id === bookingId) {
+            if (b.id === booking.id) {
                 return { ...b, status: 'completed', actualDuration: actualDuration };
             }
             return b;
           }));
-          alert('Atención confirmada correctamente.');
+
+          if (finalPayment) {
+              await addSale(finalPayment);
+          } else {
+              alert('Atención confirmada correctamente.');
+          }
       }
   };
   
@@ -638,15 +867,57 @@ const App: React.FC = () => {
   const deleteBooking = async (bookingId: string) => {
       const client = supabase;
       if (!client) return;
-      if (window.confirm('¿Estás seguro de que deseas eliminar esta reserva? Esta acción no se puede deshacer.')) {
-        const { error } = await client.from('bookings').delete().eq('id', bookingId);
-        if (error) {
-             console.error(error);
-             alert('Error al eliminar reserva.');
-        } else {
-             setBookings(prev => prev.filter(b => b.id !== bookingId));
-             alert('Reserva eliminada.');
-        }
+
+      // 1. Check for linked payments (Sales) in local state
+      // We look for sales that point to this booking ID
+      const linkedSales = sales.filter(s => s.bookingId === bookingId);
+      const hasPayments = linkedSales.length > 0;
+
+      // 2. Permission Check
+      if (hasPayments) {
+          if (userProfile?.role !== 'admin') {
+              alert('ACCESO DENEGADO.\n\nEsta reserva tiene pagos vinculados. Para mantener la integridad de la caja, no puede eliminarla.\n\nPor favor, marque la reserva como "No Vino" o Reprográmela.');
+              return;
+          } else {
+              // Admin Override Prompt
+              const confirmed = window.confirm('ADVERTENCIA DE ADMINISTRADOR:\n\nEsta reserva tiene pagos vinculados. Eliminarla dejará los pagos "huérfanos" (sin cita asociada) pero se mantendrán en caja.\n\n¿Desea desvincular los pagos y eliminar la reserva de todos modos?');
+              if (!confirmed) return;
+          }
+      } else {
+          // Standard confirmation for bookings without payments
+          if (!window.confirm('¿Estás seguro de que deseas eliminar esta reserva?')) return;
+      }
+      
+      setIsLoading(true);
+      try {
+          if (hasPayments) {
+              // Admin override: Unlink sales first
+               const { error: unlinkError } = await client
+                .from('sales')
+                .update({ booking_id: null }) 
+                .eq('booking_id', bookingId);
+            
+                if (unlinkError) console.warn("Error desvinculando ventas", unlinkError);
+          }
+
+          // Delete the booking
+          const { error } = await client.from('bookings').delete().eq('id', bookingId);
+          if (error) {
+               console.error(error);
+               alert(`Error al eliminar reserva: ${error.message}`);
+          } else {
+               setBookings(prev => prev.filter(b => b.id !== bookingId));
+               // Update local sales state if we unlinked
+               if (hasPayments) {
+                   setSales(prev => prev.map(s => s.bookingId === bookingId ? { ...s, bookingId: undefined } : s));
+               }
+               alert('Reserva eliminada correctamente.');
+          }
+      } catch (e: any) {
+          console.error(e);
+          alert(`Error inesperado: ${e.message}`);
+      } finally {
+          setIsLoading(false);
       }
   };
 
@@ -875,7 +1146,7 @@ const App: React.FC = () => {
             setInitialBookingService('Remoción');
         } else if (specialist === 'Julissa') {
              setInitialBookingService('Cejas');
-        } else if (specialist === 'Evaluación') {
+        } else if (specialist === 'D.G.' || specialist === 'Evaluación') {
             setInitialBookingService('Otro');
         } else {
             setInitialBookingService('');
@@ -907,10 +1178,21 @@ const App: React.FC = () => {
     setIsBookingModalOpen(true);
   };
   
+  // NEW: Updated Confirm Logic to support financial closing
   const handleConfirmBookingClick = (booking: Booking, duration: number) => {
+      // In the new flow, the modal handles the logic and passes data back here?
+      // Actually, to keep it simple, BookingDetailModal will pass the data
+      // For now, this signature needs to support the final sale
       setViewingBooking(null);
-      confirmBooking(booking.id, duration);
+      // Logic handled inside BookingDetailModal but final save triggers confirmBooking
+      // We will update this function signature in the component prop
   }
+  
+  // Actually confirm booking with payment
+  const executeBookingConfirmation = (booking: Booking, duration: number, finalPayment?: Sale) => {
+      setViewingBooking(null);
+      confirmBooking(booking, duration, finalPayment);
+  };
 
   const handleDeleteBookingClick = (bookingId: string) => {
     setViewingBooking(null);
@@ -940,6 +1222,21 @@ const App: React.FC = () => {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [sales, displayedMonth, displayedYear, filterService, filterProcedure, filterCream]);
   
+  // NEW: Sales filtered ONLY by date for Cash Control (ignores service/procedure filters)
+  const dateFilteredSales = useMemo(() => {
+    return sales
+      .filter(sale => {
+        const saleDate = new Date(sale.timestamp);
+        const yearMatches = saleDate.getFullYear() === displayedYear;
+        if (!yearMatches) return false;
+        if (displayedMonth !== -1 && saleDate.getMonth() !== displayedMonth) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [sales, displayedMonth, displayedYear]);
+
   const filteredWithdrawals = useMemo(() => {
     return withdrawals
       .filter(w => {
@@ -959,8 +1256,15 @@ const App: React.FC = () => {
     let totalPhysical = 0; 
     let totalDigital = 0;
     let totalCard = 0;
+    
+    // Counter for transactions
+    let countAdelantos = 0;
+    let countCierres = 0;
 
     filteredSales.forEach(sale => {
+        if (sale.transactionType === 'adelanto') countAdelantos++;
+        else if (sale.transactionType === 'cierre') countCierres++;
+
         sale.payments.forEach(payment => {
             const amount = payment.amount;
             totalSales += amount;
@@ -975,37 +1279,77 @@ const App: React.FC = () => {
     });
     
     const cardPercentage = totalSales > 0 ? (totalCard / totalSales) * 100 : 0;
-    const totalServices = filteredSales.length;
-    const uniqueClientsDNI = new Set(filteredSales.map(sale => sale.client.dni));
-    const uniqueClients = uniqueClientsDNI.size;
-    
-    const periodStartDate = displayedMonth === -1 
-      ? new Date(displayedYear, 0, 1)
-      : new Date(displayedYear, displayedMonth, 1);
-    periodStartDate.setHours(0, 0, 0, 0);
+    const totalTransactions = filteredSales.length;
 
-    let newClientsCount = 0;
-    uniqueClientsDNI.forEach(dni => {
-      const isExistingClient = sales.some(sale => 
-        sale.client.dni === dni && new Date(sale.timestamp) < periodStartDate
-      );
-      if (!isExistingClient) {
-        newClientsCount++;
-      }
-    });
+    return { 
+        totalSales, 
+        totalTransactions, 
+        totalPhysical, 
+        totalDigital, 
+        totalCard, 
+        cardPercentage,
+        countAdelantos,
+        countCierres
+    };
+  }, [filteredSales]);
 
-    return { totalSales, totalServices, uniqueClients, totalPhysical, totalDigital, totalCard, cardPercentage, newClientsCount };
-  }, [filteredSales, sales, displayedMonth, displayedYear]);
+  // NEW: Booking Stats for Header (New Clients, Unique Clients)
+  const bookingStats = useMemo(() => {
+      // Filter COMPLETED bookings in range
+      const periodBookings = bookings.filter(b => {
+          if (b.status !== 'completed') return false;
+          const date = new Date(b.startTime); // Use Service Date
+          const matchYear = date.getFullYear() === displayedYear;
+          const matchMonth = displayedMonth === -1 || date.getMonth() === displayedMonth;
+          return matchYear && matchMonth;
+      });
+
+      const uniqueClients = new Set(periodBookings.map(b => b.client.dni)).size;
+      
+      // New Clients Logic (First completed visit ever)
+      const periodStartDate = displayedMonth === -1 
+        ? new Date(displayedYear, 0, 1)
+        : new Date(displayedYear, displayedMonth, 1);
+      
+      let newClientsCount = 0;
+      const processedDNIs = new Set();
+
+      periodBookings.forEach(b => {
+          if (processedDNIs.has(b.client.dni)) return; // Count each client only once per period
+          processedDNIs.add(b.client.dni);
+
+          // Check if they had any COMPLETED booking before this period
+          const hasHistory = bookings.some(pastB => 
+              pastB.client.dni === b.client.dni && 
+              pastB.status === 'completed' &&
+              new Date(pastB.startTime) < periodStartDate
+          );
+          
+          if (!hasHistory) newClientsCount++;
+      });
+
+      return { uniqueClients, newClientsCount };
+  }, [bookings, displayedYear, displayedMonth]);
 
   const cashControlStats = useMemo(() => {
-      const totalCashIn = salesStats.totalPhysical; 
+      // Recalculate cash in based on dateFilteredSales to avoid issues with service filters
+      let totalCashIn = 0;
+      dateFilteredSales.forEach(sale => {
+          sale.payments.forEach(p => {
+              if (CASH_METHODS.includes(p.method)) {
+                  totalCashIn += p.amount;
+              }
+          });
+      });
+
       const totalWithdrawals = filteredWithdrawals.reduce((sum, w) => sum + w.amount, 0);
       const currentBalance = totalCashIn - totalWithdrawals;
       return { totalCashIn, totalWithdrawals, currentBalance };
-  }, [salesStats.totalPhysical, filteredWithdrawals]);
+  }, [dateFilteredSales, filteredWithdrawals]);
 
   const cashTransactions = useMemo(() => {
-      const incomeTransactions = filteredSales.flatMap(sale =>
+      // Use dateFilteredSales here as well
+      const incomeTransactions = dateFilteredSales.flatMap(sale =>
           sale.payments
               .filter(p => CASH_METHODS.includes(p.method)) 
               .map(p => ({
@@ -1029,7 +1373,10 @@ const App: React.FC = () => {
           .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
       let runningBalance = 0;
-      const transactionsWithBalance = allTransactions.map(tx => {
+      // Calculate running balance from oldest to newest, then reverse for display
+      const transactionsSortedByDate = [...allTransactions].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      
+      const transactionsWithBalance = transactionsSortedByDate.map(tx => {
           if (tx.type === 'income') {
               runningBalance += tx.amount;
           } else {
@@ -1039,7 +1386,7 @@ const App: React.FC = () => {
       });
 
       return transactionsWithBalance.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [filteredSales, filteredWithdrawals]);
+  }, [dateFilteredSales, filteredWithdrawals]);
 
 
   const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -1088,8 +1435,23 @@ const App: React.FC = () => {
   };
   
   const filteredBookings = useMemo(() => {
-    return bookings.filter(b => visibleSpecialists.includes(b.specialist));
-  }, [bookings, visibleSpecialists]);
+    // 1. Filter by Specialist Visibility
+    let result = bookings.filter(b => visibleSpecialists.includes(b.specialist));
+    
+    // 2. Filter by Search Term (List Mode Only)
+    if (bookingDisplayMode === 'list' && bookingSearchTerm) {
+        const lowerTerm = bookingSearchTerm.toLowerCase();
+        result = result.filter(b => 
+            (b.bookingCode && b.bookingCode.toLowerCase().includes(lowerTerm)) ||
+            (b.client.dni && b.client.dni.includes(lowerTerm)) ||
+            (b.client.name && b.client.name.toLowerCase().includes(lowerTerm))
+        );
+        // In list mode search, we usually want to see all relevant history, not just future/current
+        return result.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+    }
+
+    return result;
+  }, [bookings, visibleSpecialists, bookingDisplayMode, bookingSearchTerm]);
 
 
   const displayedPeriodText = useMemo(() => {
@@ -1107,14 +1469,13 @@ const App: React.FC = () => {
       
       return {
         'Fecha': new Date(sale.timestamp).toLocaleString('es-ES'),
+        'Tipo': sale.transactionType ? sale.transactionType.toUpperCase() : 'VENTA',
+        'Cod. Reserva': sale.bookingId ? (getBookingCode(sale.bookingId) || 'LINKED') : '-', // Lookup code
         'Registrado Por': sale.createdByName || 'Desconocido',
         'Cliente': sale.client.name,
         'DNI': sale.client.dni,
-        'Celular': sale.client.phone,
-        'Origen': sale.client.source,
         'Servicio': sale.serviceType,
         'Procedimiento': sale.procedure,
-        'Crema Vendida': sale.creamSold ? 'SI' : 'NO',
         'Monto Total': totalAmount,
         'Medios de Pago': paymentMethods,
         'Comentarios': sale.comments || '',
@@ -1123,45 +1484,29 @@ const App: React.FC = () => {
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Ventas');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transacciones');
 
-    // Auto-size columns
-    const objectMaxLength = Object.keys(dataToExport[0] || {}).map(key => ({
-      wch: Math.max(...dataToExport.map(row => (row[key as keyof typeof row] || '').toString().length), key.length)
-    }));
-    worksheet['!cols'] = objectMaxLength;
-
-    const fileName = `Ventas_${displayedPeriodText.replace(', ', '_')}.xlsx`;
+    const fileName = `Transacciones_${displayedPeriodText.replace(', ', '_')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
   };
 
   const handleDownloadBookings = () => {
     const dataToExport = filteredBookings.map(b => ({
-      'ID': b.id,
-      'Registrado Por': b.createdByName || 'Desconocido',
+      'Cod. Reserva': b.bookingCode || b.id,
       'Fecha': b.startTime.toLocaleDateString('es-ES'),
-      'Hora Inicio': b.startTime.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
-      'Hora Fin': b.endTime.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
+      'Hora': b.startTime.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'}),
       'Especialista': b.specialist,
       'Servicio': b.serviceType,
       'Procedimiento': b.procedure,
       'Cliente': b.client.name,
       'DNI': b.client.dni,
-      'Celular': b.client.phone,
-      'Estado': b.status === 'completed' ? 'Completada' : b.status === 'noshow' ? 'No Vino' : b.status === 'cancelled' ? 'Cancelada' : 'Programada',
+      'Estado': b.status,
       'Comentarios': b.comments || ''
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Reservas');
-    
-    // Auto-size columns
-    const objectMaxLength = Object.keys(dataToExport[0] || {}).map(key => ({
-      wch: Math.max(...dataToExport.map(row => (row[key as keyof typeof row] || '').toString().length), key.length) + 2
-    }));
-    worksheet['!cols'] = objectMaxLength;
-
     XLSX.writeFile(workbook, `Reservas_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
@@ -1177,12 +1522,6 @@ const App: React.FC = () => {
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Caja');
-      
-       const objectMaxLength = Object.keys(dataToExport[0] || {}).map(key => ({
-        wch: Math.max(...dataToExport.map(row => (row[key as keyof typeof row] || '').toString().length), key.length) + 2
-      }));
-      worksheet['!cols'] = objectMaxLength;
-
       XLSX.writeFile(workbook, `Caja_${displayedPeriodText.replace(', ', '_')}.xlsx`);
   }
 
@@ -1190,6 +1529,16 @@ const App: React.FC = () => {
   const handleViewChange = (view: View) => {
     setActiveView(view);
     setIsSidebarOpen(false); // Close sidebar on navigation
+  }
+  
+  // Helper to find booking code by ID
+  const getBookingCode = (bookingId: string) => {
+      const booking = bookings.find(b => b.id === bookingId);
+      return booking ? booking.bookingCode : null;
+  }
+  
+  const getBookingById = (bookingId: string) => {
+      return bookings.find(b => b.id === bookingId);
   }
 
   const SideBarButton: React.FC<{view: View, label: string, icon: React.ReactElement}> = ({ view, label, icon }) => (
@@ -1207,7 +1556,7 @@ const App: React.FC = () => {
   );
   
   const HomeIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>;
-  const SalesIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>;
+  const SalesIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01m0 12v1a2 2 0 002 2h2a2 2 0 00-2-2h-2.003A2 2 0 0112 13v-1m-4.003 4H12" /></svg>;
   const BookingsIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
   const CashControlIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>;
   const ConfigIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
@@ -1217,7 +1566,7 @@ const App: React.FC = () => {
 
   const viewTitles: Record<View, string> = {
     home: 'Inicio',
-    sales: 'Ventas',
+    sales: 'Ventas (Transacciones)',
     bookings: 'Reservas',
     cashControl: 'Control de Caja',
     configuration: 'Configuración',
@@ -1246,7 +1595,6 @@ const App: React.FC = () => {
       return <Login />;
   }
 
-  // If logged in but supabase client somehow failed (placeholder url)
   if (!supabase) {
       return (
           <div className="h-screen w-screen flex items-center justify-center bg-slate-100">
@@ -1325,27 +1673,25 @@ const App: React.FC = () => {
               <div className="max-w-4xl mx-auto space-y-8">
                   <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg">
                       <h2 className="text-3xl font-bold mb-2">¡Hola, {userProfile?.name?.split(' ')[0] || 'Usuario'}! 👋</h2>
-                      <p className="opacity-90">Bienvenido al panel de gestión de Muzza.</p>
-                      <div className="mt-6 flex flex-wrap gap-4">
-                          <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-                              <span className="block text-sm opacity-80">Reservas Hoy</span>
-                              <span className="text-2xl font-bold">
-                                  {bookings.filter(b => {
+                      <p className="opacity-90">Resumen del día de hoy.</p>
+                      
+                      {/* UPDATED: Bookings by Specialist Today */}
+                      <div className="mt-6">
+                          <h3 className="text-sm uppercase font-bold opacity-80 mb-2">Citas para Hoy ({new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })})</h3>
+                          <div className="flex flex-wrap gap-4">
+                              {activeSpecialists.map(spec => {
+                                  const count = bookings.filter(b => {
                                       const d = new Date(b.startTime);
                                       const now = new Date();
-                                      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                                  }).length}
-                              </span>
-                          </div>
-                          <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-                              <span className="block text-sm opacity-80">Ventas Hoy (S/)</span>
-                              <span className="text-2xl font-bold">
-                                  {sales.filter(s => {
-                                      const d = new Date(s.timestamp);
-                                      const now = new Date();
-                                      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                                  }).reduce((sum, s) => sum + s.payments.reduce((pSum, p) => pSum + p.amount, 0), 0).toFixed(2)}
-                              </span>
+                                      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && b.specialist === spec;
+                                  }).length;
+                                  return (
+                                      <div key={spec} className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 flex items-center space-x-2">
+                                          <span className="font-semibold">{spec}:</span>
+                                          <span className="text-xl font-bold">{count}</span>
+                                      </div>
+                                  )
+                              })}
                           </div>
                       </div>
                   </div>
@@ -1363,7 +1709,7 @@ const App: React.FC = () => {
                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                   </div>
                                   <h3 className="text-xl font-bold text-slate-800 group-hover:text-purple-600 transition-colors">Registrar Reserva</h3>
-                                  <p className="text-slate-500 mt-2 text-sm">Agendar una nueva cita en el calendario.</p>
+                                  <p className="text-slate-500 mt-2 text-sm">Agendar una nueva cita (genera código).</p>
                               </div>
                               <div className="flex justify-end">
                                   <span className="text-purple-600 font-bold text-sm flex items-center">
@@ -1372,17 +1718,17 @@ const App: React.FC = () => {
                               </div>
                           </div>
 
-                          {/* New Sale Card */}
+                          {/* New Sale Card (Producto) */}
                           <div 
                               onClick={() => { setEditingSale(null); setIsSalesModalOpen(true); }}
                               className="bg-white p-6 rounded-2xl shadow-md hover:shadow-xl transition-all cursor-pointer group border-l-8 border-green-500 flex flex-col justify-between h-48"
                           >
                               <div>
                                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01m0 12v1a2 2 0 002 2h2a2 2 0 00-2-2h-2.003A2 2 0 0112 13v-1m-4.003 4H12" /></svg>
                                   </div>
-                                  <h3 className="text-xl font-bold text-slate-800 group-hover:text-green-600 transition-colors">Registrar Venta</h3>
-                                  <p className="text-slate-500 mt-2 text-sm">Ingresar un servicio realizado o venta de producto.</p>
+                                  <h3 className="text-xl font-bold text-slate-800 group-hover:text-green-600 transition-colors">Venta Directa</h3>
+                                  <p className="text-slate-500 mt-2 text-sm">Registrar venta de producto sin cita.</p>
                               </div>
                               <div className="flex justify-end">
                                   <span className="text-green-600 font-bold text-sm flex items-center">
@@ -1396,28 +1742,145 @@ const App: React.FC = () => {
           )}
 
           {activeView === 'bookings' && (
-              <BookingCalendar
-                  bookings={filteredBookings}
-                  view={bookingView}
-                  onViewChange={setBookingView}
-                  onAddBooking={handleOpenBookingModal}
-                  onBookingClick={handleBookingClick}
-                  allSpecialists={activeSpecialists}
-                  visibleSpecialists={visibleSpecialists}
-                  onVisibleSpecialistsChange={setVisibleSpecialists}
-                  startHour={globalStartHour}
-                  endHour={globalEndHour}
-                  availableDays={activeDays}
-                  weeklySchedule={weeklySchedule}
-                  onDownload={handleDownloadBookings}
-              />
+              <>
+                {/* NEW HEADER FOR BOOKINGS: Client Stats */}
+                <div className="bg-white p-4 rounded-xl shadow-lg mb-6 flex flex-col md:flex-row justify-between gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+                        <div className="flex items-center space-x-4 border-r border-slate-100 pr-4">
+                            <div className="p-3 rounded-full bg-purple-100 text-purple-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-500 font-semibold">Clientes Únicos</p>
+                                <p className="text-2xl font-bold text-slate-800">{bookingStats.uniqueClients}</p>
+                                <p className="text-xs text-slate-400">En {displayedPeriodText}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 rounded-full bg-green-100 text-green-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-500 font-semibold">Nuevos Clientes</p>
+                                <p className="text-2xl font-bold text-slate-800">{bookingStats.newClientsCount}</p>
+                                <p className="text-xs text-slate-400">Primera visita en {displayedPeriodText}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {/* View Toggle */}
+                    <div className="flex items-center bg-slate-100 p-1 rounded-lg self-start md:self-center">
+                        <button
+                            onClick={() => setBookingDisplayMode('calendar')}
+                            className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${bookingDisplayMode === 'calendar' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Calendario
+                        </button>
+                        <button
+                            onClick={() => setBookingDisplayMode('list')}
+                            className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${bookingDisplayMode === 'list' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Lista
+                        </button>
+                    </div>
+                </div>
+
+                {bookingDisplayMode === 'calendar' ? (
+                    <BookingCalendar
+                        bookings={filteredBookings}
+                        view={bookingView}
+                        onViewChange={setBookingView}
+                        onAddBooking={handleOpenBookingModal}
+                        onBookingClick={handleBookingClick}
+                        allSpecialists={activeSpecialists}
+                        visibleSpecialists={visibleSpecialists}
+                        onVisibleSpecialistsChange={setVisibleSpecialists}
+                        startHour={globalStartHour}
+                        endHour={globalEndHour}
+                        availableDays={activeDays}
+                        weeklySchedule={weeklySchedule}
+                        onDownload={handleDownloadBookings}
+                    />
+                ) : (
+                    /* LIST VIEW COMPONENT */
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                            <h3 className="text-lg font-bold text-slate-800">Listado de Reservas</h3>
+                            <div className="relative w-full sm:w-64">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                                    </svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por DNI o Código..."
+                                    value={bookingSearchTerm}
+                                    onChange={(e) => setBookingSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left text-slate-600">
+                                <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase">
+                                    <tr>
+                                        <th className="px-4 py-3">Código</th>
+                                        <th className="px-4 py-3">Fecha</th>
+                                        <th className="px-4 py-3">Hora</th>
+                                        <th className="px-4 py-3">Cliente</th>
+                                        <th className="px-4 py-3">Servicio</th>
+                                        <th className="px-4 py-3">Especialista</th>
+                                        <th className="px-4 py-3">Estado</th>
+                                        <th className="px-4 py-3 text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {filteredBookings.map((b) => (
+                                        <tr key={b.id} className="hover:bg-slate-50">
+                                            <td className="px-4 py-3 font-mono font-bold text-purple-700">{b.bookingCode}</td>
+                                            <td className="px-4 py-3">{b.startTime.toLocaleDateString('es-ES')}</td>
+                                            <td className="px-4 py-3">{b.startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                                            <td className="px-4 py-3">
+                                                <div className="font-semibold text-slate-800">{b.client.name}</div>
+                                                <div className="text-xs text-slate-400">{b.client.dni}</div>
+                                            </td>
+                                            <td className="px-4 py-3">{b.serviceType} <span className="text-xs text-slate-400 block">{b.procedure}</span></td>
+                                            <td className="px-4 py-3">{b.specialist}</td>
+                                            <td className="px-4 py-3">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase 
+                                                    ${b.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                                      b.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                                      b.status === 'noshow' ? 'bg-gray-200 text-gray-600 line-through' :
+                                                      'bg-yellow-100 text-yellow-800'}`}>
+                                                    {b.status === 'completed' ? 'Completada' : 
+                                                     b.status === 'cancelled' ? 'Cancelada' : 
+                                                     b.status === 'noshow' ? 'No Vino' : 'Programada'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <button onClick={() => handleBookingClick(b)} className="text-purple-600 hover:text-purple-800 font-bold hover:underline">
+                                                    Ver
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filteredBookings.length === 0 && (
+                                        <tr><td colSpan={8} className="p-8 text-center text-slate-400">No se encontraron reservas.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+              </>
           )}
           {activeView === 'sales' && (
             <div className="space-y-6">
                 <div className="bg-white p-4 rounded-xl shadow-lg">
                 <div className="flex justify-between items-start flex-col sm:flex-row sm:items-center gap-4 mb-4">
                   <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">
-                    Registro de Ventas
+                    Registro de Transacciones
                     <span className="block sm:inline text-base sm:text-lg font-normal text-slate-500 sm:ml-2 capitalize">
                       ({displayedPeriodText})
                     </span>
@@ -1428,7 +1891,7 @@ const App: React.FC = () => {
                         className="flex-1 sm:flex-none px-3 py-2.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-transform transform hover:scale-105 flex items-center justify-center space-x-2"
                       >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                          <span className="hidden sm:inline">Nueva Venta</span>
+                          <span className="hidden sm:inline">Venta Directa</span>
                       </button>
                        <button 
                         onClick={() => setIsBulkUploadModalOpen(true)}
@@ -1463,20 +1926,22 @@ const App: React.FC = () => {
                     </div>
                 </div>
                  <div className="bg-white p-5 rounded-xl shadow-lg flex items-center space-x-4">
-                    <div className="p-3 rounded-full bg-blue-100 text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197m0 0A5.965 5.965 0 0112 13a5.965 5.965 0 013 1.803" /></svg></div>
+                    <div className="p-3 rounded-full bg-blue-100 text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg></div>
                     <div>
-                        <p className="text-sm text-slate-500 font-semibold">Atenciones</p>
-                        <p className="text-3xl font-bold text-slate-800">{salesStats.totalServices}</p>
+                        <p className="text-sm text-slate-500 font-semibold"># Transacciones</p>
+                        <p className="text-3xl font-bold text-slate-800">{salesStats.totalTransactions}</p>
                     </div>
                 </div>
                  <div className="bg-white p-5 rounded-xl shadow-lg flex items-center space-x-4">
-                    <div className="p-3 rounded-full bg-purple-100 text-purple-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg></div>
+                    <div className="p-3 rounded-full bg-purple-100 text-purple-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg></div>
                     <div>
-                        <p className="text-sm text-slate-500 font-semibold">Clientes Únicos</p>
-                        <p className="text-3xl font-bold text-slate-800">{salesStats.uniqueClients}</p>
-                         <p className="text-xs text-slate-500 mt-1">
-                           <span className="font-semibold text-green-600">{salesStats.newClientsCount}</span> Nuevos en Periodo
-                        </p>
+                        <p className="text-sm text-slate-500 font-semibold">Tipos</p>
+                        <div className="text-sm text-slate-700">
+                            <span className="font-bold">{salesStats.countAdelantos}</span> Adelantos
+                        </div>
+                        <div className="text-sm text-slate-700">
+                            <span className="font-bold">{salesStats.countCierres}</span> Cierres
+                        </div>
                     </div>
                 </div>
               </div>
@@ -1544,7 +2009,7 @@ const App: React.FC = () => {
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50">
                       <tr>
-                        {['Fecha', 'Registrado Por', 'Cliente', 'DNI', 'Celular', 'Servicio', 'Procedimiento', 'Crema', 'Monto', 'Medio de Pago', 'Comentarios', 'Acciones'].map(header => (
+                        {['Fecha', 'Tipo', 'Cod.', 'Cliente', 'DNI', 'Servicio', 'Monto', 'Pago', 'Acciones'].map(header => (
                           <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{header}</th>
                         ))}
                       </tr>
@@ -1554,27 +2019,36 @@ const App: React.FC = () => {
                         const totalAmount = sale.payments.reduce((sum, p) => sum + p.amount, 0);
                         const paymentMethods = sale.payments.map(p => p.method).join(', ');
                         const isFromCurrentMonth = new Date(sale.timestamp).getMonth() === new Date().getMonth() && new Date(sale.timestamp).getFullYear() === new Date().getFullYear();
+                        
+                        let typeColor = 'bg-slate-100 text-slate-600';
+                        if(sale.transactionType === 'adelanto') typeColor = 'bg-yellow-100 text-yellow-800';
+                        if(sale.transactionType === 'cierre') typeColor = 'bg-green-100 text-green-800';
+
                         return (
                           <tr key={sale.id} className="hover:bg-slate-50">
                             <td className="px-4 py-3 whitespace-nowrap text-slate-500 font-mono text-xs">{new Date(sale.timestamp).toLocaleString('es-ES')}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-xs text-purple-600 font-semibold">{sale.createdByName || 'Desconocido'}</td>
-                            <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-800 flex items-center">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${typeColor}`}>
+                                    {sale.transactionType || 'Venta'}
+                                </span>
+                            </td>
+                            {/* Updated Code Column */}
+                            <td 
+                                onClick={() => sale.bookingId && handleBookingClick(getBookingById(sale.bookingId)!)}
+                                className={`px-4 py-3 whitespace-nowrap text-xs font-mono font-bold ${sale.bookingId ? 'text-blue-600 hover:text-blue-800 cursor-pointer underline' : 'text-slate-400'}`}
+                            >
+                                {sale.bookingId ? getBookingCode(sale.bookingId) || 'LINKED' : '-'}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-800">
                                 {sale.client.name}
-                                <button onClick={() => handleOpenHistoryModal(sale.client.dni)} className="ml-2 text-slate-400 hover:text-purple-600" title="Ver historial del cliente">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                                        <path fillRule="evenodd" d="M4 5a2 2 0 012-2h3.586a1 1 0 01.707.293l1.414 1.414a1 1 0 01.293.707V6h-1V5.414L9.414 4H6a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V9h1v6a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2h2z" clipRule="evenodd" />
-                                    </svg>
-                                </button>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-slate-500 font-mono">{sale.client.dni}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-slate-500">{sale.client.phone}</td>
-                            <td className="px-4 py-3 whitespace-nowrap">{sale.serviceType}</td>
-                            <td className="px-4 py-3 whitespace-nowrap">{sale.procedure}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center"><span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${sale.creamSold ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>{sale.creamSold ? 'SI' : 'NO'}</span></td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                                <p>{sale.serviceType}</p>
+                                <p className="text-xs text-slate-400">{sale.procedure}</p>
+                            </td>
                             <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800 font-mono">S/ {totalAmount.toFixed(2)}</td>
                             <td className="px-4 py-3 whitespace-nowrap text-slate-500">{paymentMethods}</td>
-                            <td className="px-4 py-3 text-slate-500 truncate max-w-xs">{sale.comments}</td>
                             <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex items-center">
                                     {isFromCurrentMonth && (
@@ -1594,7 +2068,7 @@ const App: React.FC = () => {
                       })}
                     </tbody>
                   </table>
-                  {filteredSales.length === 0 && <p className="text-center p-10 text-slate-500">No hay ventas para el período seleccionado.</p>}
+                  {filteredSales.length === 0 && <p className="text-center p-10 text-slate-500">No hay transacciones para el período seleccionado.</p>}
                 </div>
               </div>
               
@@ -1603,22 +2077,25 @@ const App: React.FC = () => {
                   {filteredSales.map(sale => {
                       const totalAmount = sale.payments.reduce((sum, p) => sum + p.amount, 0);
                       const isFromCurrentMonth = new Date(sale.timestamp).getMonth() === new Date().getMonth() && new Date(sale.timestamp).getFullYear() === new Date().getFullYear();
+                      let typeColor = 'bg-slate-100 text-slate-600';
+                      if(sale.transactionType === 'adelanto') typeColor = 'bg-yellow-100 text-yellow-800';
+                      if(sale.transactionType === 'cierre') typeColor = 'bg-green-100 text-green-800';
+
                       return (
                           <div key={sale.id} className="bg-white rounded-xl shadow-lg p-4 space-y-3">
                               <div className="flex justify-between items-start">
                                   <div>
-                                      <p className="font-bold text-lg text-slate-800 flex items-center">{sale.client.name}
-                                        <button onClick={() => handleOpenHistoryModal(sale.client.dni)} className="ml-2 text-slate-400 hover:text-purple-600" title="Ver historial del cliente">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2h3.586a1 1 0 01.707.293l1.414 1.414a1 1 0 01.293.707V6h-1V5.414L9.414 4H6a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V9h1v6a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2h2z" clipRule="evenodd" />
-                                            </svg>
-                                        </button>
-                                      </p>
-                                      <p className="text-sm text-slate-500 font-mono">{sale.client.dni}</p>
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-1 inline-block ${typeColor}`}>
+                                        {sale.transactionType || 'Venta'}
+                                      </span>
+                                      <p className="font-bold text-lg text-slate-800 flex items-center">{sale.client.name}</p>
+                                      {sale.bookingId && (
+                                          <p className="text-xs text-blue-600 font-mono mt-1" onClick={() => handleBookingClick(getBookingById(sale.bookingId!)!)}>
+                                              Ref: {getBookingCode(sale.bookingId) || 'LINKED'}
+                                          </p>
+                                      )}
                                       <div className="flex justify-between items-center w-full mt-1">
                                           <p className="text-xs text-slate-500 font-mono">{new Date(sale.timestamp).toLocaleString('es-ES')}</p>
-                                          <p className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">{sale.createdByName || 'Desconocido'}</p>
                                       </div>
                                   </div>
                                   <div className="text-right">
@@ -1644,7 +2121,7 @@ const App: React.FC = () => {
                           </div>
                       )
                   })}
-                   {filteredSales.length === 0 && <p className="text-center p-10 text-slate-500">No hay ventas para el período seleccionado.</p>}
+                   {filteredSales.length === 0 && <p className="text-center p-10 text-slate-500">No hay transacciones para el período seleccionado.</p>}
               </div>
 
             </div>
@@ -1652,93 +2129,89 @@ const App: React.FC = () => {
           {activeView === 'cashControl' && (
               <div className="space-y-6">
                   {/* Header */}
-                  <div className="bg-white p-6 rounded-xl shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
-                      <div className="flex gap-4 items-center">
-                          <h2 className="text-2xl font-bold text-slate-800">Control de Caja Chica (Efectivo)</h2>
+                  <div className="bg-white p-4 rounded-xl shadow-lg flex flex-col sm:flex-row justify-between items-center gap-4">
+                      <div className="flex items-center gap-4">
+                          <h2 className="text-2xl font-bold text-slate-800">Control de Caja (Físico)</h2>
                           <div className="flex gap-2">
-                              <select value={displayedMonth} onChange={handleMonthChange} className="px-3 py-2 border border-slate-300 rounded-lg text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500">
-                                  <option value={-1}>Todos los Meses</option>
-                                  {MONTHS.map((month, index) => <option key={month} value={index}>{month}</option>)}
+                              <select value={displayedMonth} onChange={handleMonthChange} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                                  <option value={-1}>Todos</option>
+                                  {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
                               </select>
-                              <select value={displayedYear} onChange={handleYearChange} className="px-3 py-2 border border-slate-300 rounded-lg text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500">
-                                  {YEARS.map(year => <option key={year} value={year}>{year}</option>)}
+                              <select value={displayedYear} onChange={handleYearChange} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                                  {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                               </select>
                           </div>
                       </div>
-                      <div className="flex gap-3">
-                          <button
+                      <div className="flex gap-2">
+                          <button 
                               onClick={() => setIsWithdrawalModalOpen(true)}
-                              className="px-4 py-2 bg-red-500 text-white font-bold rounded-lg shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-transform transform hover:scale-105 flex items-center gap-2"
+                              className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg shadow-md hover:bg-red-700 transition-transform hover:scale-105 flex items-center gap-2"
                           >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                              Registrar Retiro
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              <span>Registrar Retiro</span>
                           </button>
-                          <button
+                          <button 
                               onClick={handleDownloadCashControl}
-                              className="px-4 py-2 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-transform transform hover:scale-105 flex items-center gap-2"
+                              className="px-4 py-2 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition-transform hover:scale-105 flex items-center gap-2"
                           >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                              Excel
+                              <span>Descargar</span>
                           </button>
                       </div>
                   </div>
 
-                  {/* Stats Cards */}
+                  {/* KPI Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="bg-white p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                          <p className="text-sm font-bold text-slate-500 uppercase">Total Ingresos (Efectivo)</p>
-                          <p className="text-3xl font-bold text-green-600 mt-2">S/ {cashControlStats.totalCashIn.toFixed(2)}</p>
+                      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500">
+                          <p className="text-sm font-bold text-slate-500 uppercase">Ingresos (Efectivo)</p>
+                          <p className="text-3xl font-bold text-green-700 mt-2">S/ {cashControlStats.totalCashIn.toFixed(2)}</p>
                       </div>
-                      <div className="bg-white p-5 rounded-xl shadow-lg border-l-4 border-red-500">
-                          <p className="text-sm font-bold text-slate-500 uppercase">Total Retiros</p>
-                          <p className="text-3xl font-bold text-red-600 mt-2">S/ {cashControlStats.totalWithdrawals.toFixed(2)}</p>
+                      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-red-500">
+                          <p className="text-sm font-bold text-slate-500 uppercase">Egresos (Retiros)</p>
+                          <p className="text-3xl font-bold text-red-700 mt-2">S/ {cashControlStats.totalWithdrawals.toFixed(2)}</p>
                       </div>
-                      <div className="bg-white p-5 rounded-xl shadow-lg border-l-4 border-blue-500">
+                      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
                           <p className="text-sm font-bold text-slate-500 uppercase">Saldo en Caja</p>
-                          <p className="text-3xl font-bold text-slate-800 mt-2">S/ {cashControlStats.currentBalance.toFixed(2)}</p>
+                          <p className="text-3xl font-bold text-blue-700 mt-2">S/ {cashControlStats.currentBalance.toFixed(2)}</p>
                       </div>
                   </div>
 
                   {/* Transactions Table */}
                   <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                      <div className="p-4 border-b border-slate-100 bg-slate-50">
-                          <h3 className="font-bold text-slate-700">Movimientos de Caja Detallados</h3>
+                      <div className="p-4 border-b border-slate-200">
+                          <h3 className="font-bold text-slate-700">Movimientos de Caja</h3>
                       </div>
                       <div className="overflow-x-auto">
                           <table className="w-full text-sm text-left">
-                              <thead className="text-xs text-slate-500 uppercase bg-slate-100 font-bold">
+                              <thead className="bg-slate-50 text-slate-600 font-semibold">
                                   <tr>
-                                      <th className="px-6 py-3">Fecha</th>
-                                      <th className="px-6 py-3">Descripción</th>
-                                      <th className="px-6 py-3 text-center">Tipo</th>
-                                      <th className="px-6 py-3 text-right">Monto</th>
-                                      <th className="px-6 py-3 text-right">Saldo Acum.</th>
+                                      <th className="px-4 py-3">Fecha</th>
+                                      <th className="px-4 py-3">Descripción</th>
+                                      <th className="px-4 py-3 text-center">Tipo</th>
+                                      <th className="px-4 py-3 text-right">Monto</th>
+                                      <th className="px-4 py-3 text-right">Saldo</th>
                                   </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
-                                  {cashTransactions.map(tx => (
+                                  {cashTransactions.map((tx) => (
                                       <tr key={tx.id} className="hover:bg-slate-50">
-                                          <td className="px-6 py-4 whitespace-nowrap font-mono text-xs">{tx.timestamp.toLocaleString('es-ES')}</td>
-                                          <td className="px-6 py-4">{tx.description}</td>
-                                          <td className="px-6 py-4 text-center">
-                                              <span className={`px-2 py-1 rounded-full text-xs font-bold ${tx.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                                  {tx.type === 'income' ? 'INGRESO' : 'RETIRO'}
+                                          <td className="px-4 py-3 whitespace-nowrap">{tx.timestamp.toLocaleString('es-ES')}</td>
+                                          <td className="px-4 py-3 font-medium text-slate-800">{tx.description}</td>
+                                          <td className="px-4 py-3 text-center">
+                                              <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${tx.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                  {tx.type === 'income' ? 'Ingreso' : 'Retiro'}
                                               </span>
                                           </td>
-                                          <td className={`px-6 py-4 text-right font-mono font-bold ${tx.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                                          <td className={`px-4 py-3 text-right font-mono font-bold ${tx.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                                               {tx.type === 'income' ? '+' : '-'} S/ {tx.amount.toFixed(2)}
                                           </td>
-                                          <td className="px-6 py-4 text-right font-mono font-semibold text-slate-700">
+                                          <td className="px-4 py-3 text-right font-mono font-bold text-slate-700">
                                               S/ {tx.balance.toFixed(2)}
                                           </td>
                                       </tr>
                                   ))}
                                   {cashTransactions.length === 0 && (
-                                      <tr>
-                                          <td colSpan={5} className="px-6 py-10 text-center text-slate-500">
-                                              No hay movimientos de caja registrados en este periodo.
-                                          </td>
-                                      </tr>
+                                      <tr><td colSpan={5} className="p-8 text-center text-slate-400">No hay movimientos registrados.</td></tr>
                                   )}
                               </tbody>
                           </table>
@@ -1758,6 +2231,9 @@ const App: React.FC = () => {
                 setBookingGoals={(goals) => saveGoalsToDB(goals as any, 'booking')}
                 clientGoals={configClientGoals} 
                 setClientGoals={(goals) => saveGoalsToDB(goals as any, 'client')}
+                userRole={userProfile?.role || 'staff'}
+                onBulkDelete={handleBulkDelete}
+                onFactoryReset={() => setIsResetModalOpen(true)} // Open Custom Modal
               />
           )}
            {activeView === 'management' && (
@@ -1800,6 +2276,12 @@ const App: React.FC = () => {
         </div>
         
         {/* Modals */}
+        <ResetConfirmationModal 
+            isOpen={isResetModalOpen}
+            onClose={() => setIsResetModalOpen(false)}
+            onConfirm={executeFactoryReset}
+        />
+        
         <SalesForm 
             isOpen={isSalesModalOpen} 
             onClose={handleCloseSalesModal} 
@@ -1846,8 +2328,9 @@ const App: React.FC = () => {
             onClose={() => setViewingBooking(null)}
             onEdit={handleEditBookingClick}
             onDelete={handleDeleteBookingClick}
-            onConfirm={handleConfirmBookingClick}
+            onConfirm={executeBookingConfirmation}
             onNoShow={handleNoShowBookingClick}
+            onReconfirm={updateBookingReconfirmation} // Pass handler
         />
     </div>
   );

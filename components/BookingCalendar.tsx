@@ -266,6 +266,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                             </svg>
                                         )}
+                                        {booking.reconfirmationStatus === 'confirmed' && (
+                                            <span className="text-blue-600 font-bold">✓</span>
+                                        )}
                                         <span className="font-semibold truncate">{booking.client.name.split(' ')[0]}</span>
                                         <span className="ml-auto hidden sm:inline flex-shrink-0">{new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                     </div>
@@ -414,9 +417,18 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                                                         }}
                                                     >
                                                         <div className="flex items-center justify-between">
-                                                            <p className="font-bold text-xs truncate">{booking.client.name}</p>
+                                                            <div className="flex items-center gap-1 overflow-hidden">
+                                                                {/* RECONFIRMATION ICON */}
+                                                                {booking.reconfirmationStatus === 'confirmed' && (
+                                                                    <span title="Reconfirmado" className="text-blue-600 font-extrabold flex-shrink-0">✓✓</span>
+                                                                )}
+                                                                {booking.reconfirmationStatus === 'rejected' && (
+                                                                    <span title="No reconfirmado" className="text-red-500 font-bold flex-shrink-0">?</span>
+                                                                )}
+                                                                <p className="font-bold text-xs truncate">{booking.client.name}</p>
+                                                            </div>
                                                             {isCompleted && (
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-700" viewBox="0 0 20 20" fill="currentColor">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-700 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                                 </svg>
                                                             )}

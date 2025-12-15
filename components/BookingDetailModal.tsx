@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { Booking } from '../types';
-import { SERVICE_TYPE_COLORS } from '../constants';
+import { Booking, Sale, Payment } from '../types';
+import { SERVICE_TYPE_COLORS, PAYMENT_METHODS } from '../constants';
 
 interface BookingDetailModalProps {
   booking: Booking | null;
   onClose: () => void;
   onEdit: (booking: Booking) => void;
   onDelete: (bookingId: string) => void;
-  onConfirm: (booking: Booking, actualDuration: number) => void;
+  onConfirm: (booking: Booking, actualDuration: number, finalPayment?: Sale) => void;
   onNoShow: (bookingId: string) => void;
+  onReconfirm?: (bookingId: string, status: 'confirmed' | 'rejected' | null) => void; // New Prop
 }
 
 const DetailRow: React.FC<{ icon: React.ReactNode; label: string; value: string | React.ReactNode }> = ({ icon, label, value }) => (
@@ -22,15 +23,29 @@ const DetailRow: React.FC<{ icon: React.ReactNode; label: string; value: string 
     </div>
 );
 
-const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClose, onEdit, onDelete, onConfirm, onNoShow }) => {
+const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClose, onEdit, onDelete, onConfirm, onNoShow, onReconfirm }) => {
   const [isConfirming, setIsConfirming] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1); // 1 = Duration, 2 = Payment
+  
+  // Step 1 State
   const [actualDuration, setActualDuration] = useState<number>(60);
+  
+  // Step 2 State
+  const [remainingAmount, setRemainingAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
+  const [paymentCode, setPaymentCode] = useState('');
+  const [addCream, setAddCream] = useState(false);
   
   useEffect(() => {
       if (booking) {
           setIsConfirming(false);
+          setStep(1);
           const duration = (booking.endTime.getTime() - booking.startTime.getTime()) / 60000;
           setActualDuration(booking.actualDuration || duration);
+          setRemainingAmount('');
+          setPaymentMethod(PAYMENT_METHODS[0]);
+          setPaymentCode('');
+          setAddCream(false);
       }
   }, [booking]);
 
@@ -51,10 +66,44 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
   
   const handleConfirmClick = () => {
       setIsConfirming(true);
+      setStep(1);
   };
   
-  const handleSaveConfirmation = () => {
-      onConfirm(booking, actualDuration);
+  const handleNextStep = () => {
+      if (actualDuration <= 0) {
+          alert("Duración inválida");
+          return;
+      }
+      setStep(2);
+  };
+
+  const handleFinalize = () => {
+      const amount = parseFloat(remainingAmount);
+      
+      let finalPaymentSale: Sale | undefined = undefined;
+
+      if (!isNaN(amount) && amount > 0) {
+          const payments: Payment[] = [{
+              method: paymentMethod,
+              code: paymentCode,
+              amount: amount
+          }];
+
+          finalPaymentSale = {
+              id: `sale-close-${Date.now()}`,
+              timestamp: new Date(),
+              client: booking.client,
+              serviceType: booking.serviceType,
+              procedure: booking.procedure,
+              payments: payments,
+              creamSold: addCream,
+              comments: `Cierre Reserva #${booking.bookingCode || ''}`,
+              bookingId: booking.id,
+              transactionType: 'cierre'
+          };
+      }
+
+      onConfirm(booking, actualDuration, finalPaymentSale);
       onClose();
   };
   
@@ -65,18 +114,12 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
 
   const handleWhatsAppReminder = () => {
       if (!booking.client.phone) return;
-
-      // Basic phone cleaning
       let phone = booking.client.phone.replace(/\D/g, '');
-      // Assume Peru (51) if length is 9
       if (phone.length === 9) phone = '51' + phone;
-
       const firstName = booking.client.name.split(' ')[0];
       const dateStr = booking.startTime.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
       const timeStr = booking.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-
       const message = `Hola ${firstName}, te escribimos de Muzza ✨. Te recordamos tu cita de ${booking.procedure} para el ${dateStr} a las ${timeStr}. Por favor confírmanos tu asistencia. ¡Te esperamos!`;
-
       const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
       window.open(url, '_blank');
   };
@@ -106,7 +149,9 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             </div>
             <div>
-              <h2 className={`text-xl font-bold ${colors.text}`}>Detalle de la Reserva</h2>
+              <h2 className={`text-xl font-bold ${colors.text}`}>
+                  {booking.bookingCode ? `Reserva #${booking.bookingCode}` : 'Detalle de la Reserva'}
+              </h2>
               <p className={`text-sm ${colors.text} opacity-80`}>{booking.serviceType}</p>
             </div>
           </div>
@@ -114,66 +159,187 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </header>
-        <div className="overflow-y-auto flex-grow p-8 space-y-6">
-            <div className="flex justify-between items-center">
-                {getStatusBadge()}
-                 {booking.status === 'completed' && <span className="text-xs text-slate-500">Duración Real: {booking.actualDuration} min</span>}
-            </div>
-
-            <DetailRow icon={CalendarIcon} label="Fecha" value={formattedDate(booking.startTime)} />
-            <DetailRow icon={ClockIcon} label="Horario" value={`${formattedTime(booking.startTime)} - ${formattedTime(booking.endTime)}`} />
-            <DetailRow icon={TagIcon} label="Servicio" value={`${booking.procedure} (con ${booking.specialist})`} />
-            <DetailRow icon={UserIcon} label="Cliente" value={
-                <div className="flex flex-col">
-                    <span className="font-semibold">{booking.client.name}</span>
-                    <span className="text-sm text-slate-500">DNI: {booking.client.dni}</span>
-                    <span className="text-sm text-slate-500">Cel: {booking.client.phone}</span>
+        
+        {/* Main Content */}
+        {!isConfirming ? (
+            <div className="overflow-y-auto flex-grow p-8 space-y-6">
+                <div className="flex justify-between items-center">
+                    {getStatusBadge()}
+                    {booking.status === 'completed' && <span className="text-xs text-slate-500">Duración Real: {booking.actualDuration} min</span>}
                 </div>
-            } />
 
-            {booking.downPayment && (
-                 <DetailRow icon={PaymentIcon} label="Pago a Cuenta" value={
-                     <span className="font-semibold text-green-600">
-                        S/ {booking.downPayment.amount.toFixed(2)}
-                        <span className="text-sm font-normal text-slate-500 ml-2">({booking.downPayment.method})</span>
-                     </span>
-                 } />
-            )}
-
-            {booking.comments && (
-                <DetailRow icon={CommentIcon} label="Comentarios" value={
-                    <p className="text-base text-slate-800 whitespace-pre-wrap">{booking.comments}</p>
+                <DetailRow icon={CalendarIcon} label="Fecha" value={formattedDate(booking.startTime)} />
+                <DetailRow icon={ClockIcon} label="Horario" value={`${formattedTime(booking.startTime)} - ${formattedTime(booking.endTime)}`} />
+                <DetailRow icon={TagIcon} label="Servicio" value={`${booking.procedure} (con ${booking.specialist})`} />
+                <DetailRow icon={UserIcon} label="Cliente" value={
+                    <div className="flex flex-col">
+                        <span className="font-semibold">{booking.client.name}</span>
+                        <span className="text-sm text-slate-500">DNI: {booking.client.dni}</span>
+                        <span className="text-sm text-slate-500">Cel: {booking.client.phone}</span>
+                    </div>
                 } />
-            )}
 
-            {/* Confirm Section */}
-            {isConfirming && (
-                <div className="mt-4 bg-purple-50 p-4 rounded-lg border border-purple-200 animate-fade-in">
-                    <h4 className="font-bold text-purple-800 mb-2">Confirmar Atención</h4>
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-slate-600 mb-1">Duración Real (minutos)</label>
-                        <div className="flex items-center">
-                            <input 
-                                type="number" 
-                                value={actualDuration} 
-                                onChange={e => setActualDuration(Number(e.target.value))}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
-                                min="1"
-                            />
-                            <span className="ml-2 text-slate-500 text-sm">min</span>
+                {booking.downPayment && (
+                    <DetailRow icon={PaymentIcon} label="Pago a Cuenta (Adelanto)" value={
+                        <span className="font-semibold text-green-600">
+                            S/ {booking.downPayment.amount.toFixed(2)}
+                            <span className="text-sm font-normal text-slate-500 ml-2">({booking.downPayment.method})</span>
+                        </span>
+                    } />
+                )}
+
+                {/* NEW RECONFIRMATION SECTION */}
+                {booking.status === 'scheduled' && onReconfirm && (
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-bold text-slate-700">Estado de Reconfirmación</h4>
+                            <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                                booking.reconfirmationStatus === 'confirmed' ? 'bg-green-100 text-green-700' :
+                                booking.reconfirmationStatus === 'rejected' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-200 text-gray-500'
+                            }`}>
+                                {booking.reconfirmationStatus === 'confirmed' ? 'RECONFIRMADO' :
+                                 booking.reconfirmationStatus === 'rejected' ? 'NO ASISTIRÁ / DUDOSO' :
+                                 'PENDIENTE'}
+                            </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">Ajuste si la atención duró más o menos de lo agendado.</p>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => onReconfirm(booking.id, 'confirmed')}
+                                className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-colors ${
+                                    booking.reconfirmationStatus === 'confirmed' 
+                                    ? 'bg-green-600 text-white border-green-600' 
+                                    : 'bg-white text-green-600 border-green-200 hover:bg-green-50'
+                                }`}
+                            >
+                                ✓ Confirmó
+                            </button>
+                            <button 
+                                onClick={() => onReconfirm(booking.id, 'rejected')}
+                                className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-colors ${
+                                    booking.reconfirmationStatus === 'rejected' 
+                                    ? 'bg-red-600 text-white border-red-600' 
+                                    : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
+                                }`}
+                            >
+                                ✕ Negativo
+                            </button>
+                            {booking.reconfirmationStatus && (
+                                <button 
+                                    onClick={() => onReconfirm(booking.id, null)}
+                                    className="px-3 py-2 text-xs font-bold rounded-lg border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                                    title="Resetear estado"
+                                >
+                                    ↺
+                                </button>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex space-x-3">
-                        <button onClick={() => setIsConfirming(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded-md font-semibold hover:bg-slate-50">Cancelar</button>
-                        <button onClick={handleSaveConfirmation} className="flex-1 py-2 bg-purple-600 text-white rounded-md font-bold hover:bg-purple-700">Confirmar y Guardar</button>
+                )}
+
+                {booking.comments && (
+                    <DetailRow icon={CommentIcon} label="Comentarios" value={
+                        <p className="text-base text-slate-800 whitespace-pre-wrap">{booking.comments}</p>
+                    } />
+                )}
+            </div>
+        ) : (
+            // CONFIRMATION FLOW (2 Steps)
+            <div className="overflow-y-auto flex-grow p-8 space-y-6">
+                {step === 1 && (
+                    <div className="animate-fade-in">
+                        <h4 className="text-lg font-bold text-slate-800 mb-4 text-center">Paso 1: Confirmar Tiempo</h4>
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4">
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Duración Real (minutos)</label>
+                            <div className="flex items-center">
+                                <button onClick={() => setActualDuration(prev => Math.max(15, prev - 15))} className="px-3 py-2 bg-slate-200 rounded-l-md font-bold text-slate-600">-</button>
+                                <input 
+                                    type="number" 
+                                    value={actualDuration} 
+                                    onChange={e => setActualDuration(Number(e.target.value))}
+                                    className="w-full px-3 py-2 border-y border-slate-300 text-center font-bold text-lg"
+                                    min="1"
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                />
+                                <button onClick={() => setActualDuration(prev => prev + 15)} className="px-3 py-2 bg-slate-200 rounded-r-md font-bold text-slate-600">+</button>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2 text-center">Ajuste si la atención duró más o menos.</p>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+
+                {step === 2 && (
+                    <div className="animate-fade-in">
+                        <h4 className="text-lg font-bold text-slate-800 mb-4 text-center">Paso 2: Cierre de Pago</h4>
+                        
+                        {booking.downPayment && (
+                            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 mb-4 flex justify-between items-center">
+                                <span className="text-sm text-yellow-800 font-semibold">Adelanto ya pagado:</span>
+                                <span className="font-bold text-yellow-900">S/ {booking.downPayment.amount.toFixed(2)}</span>
+                            </div>
+                        )}
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">Monto Restante a Pagar (S/)</label>
+                                <input 
+                                    type="number" 
+                                    value={remainingAmount} 
+                                    onChange={e => setRemainingAmount(e.target.value)}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 text-lg font-bold text-slate-800"
+                                    placeholder="0.00"
+                                    min="0"
+                                    step="0.01"
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                />
+                                <p className="text-xs text-slate-400 mt-1">Si es 0, no se generará transacción adicional.</p>
+                            </div>
+                            
+                            {parseFloat(remainingAmount) > 0 && (
+                                <>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-600 mb-1">Medio de Pago</label>
+                                        <select 
+                                            value={paymentMethod} 
+                                            onChange={e => setPaymentMethod(e.target.value)} 
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm"
+                                        >
+                                            {PAYMENT_METHODS.map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-600 mb-1">Código Operación (Opcional)</label>
+                                        <input 
+                                            type="text" 
+                                            value={paymentCode} 
+                                            onChange={e => setPaymentCode(e.target.value)}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm"
+                                        />
+                                    </div>
+                                </>
+                            )}
+
+                            {booking.serviceType === 'Cejas' && (
+                                <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                                    <label className="flex items-center space-x-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={addCream}
+                                            onChange={e => setAddCream(e.target.checked)}
+                                            className="h-5 w-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                                        />
+                                        <span className="font-semibold text-purple-800 text-sm">¿Llevó Crema Post-Cuidado?</span>
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
         
         <footer className="p-5 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-          {!isConfirming && (
+          {!isConfirming ? (
             <div className="flex flex-col gap-5">
               {/* Workflow Actions - Only for Scheduled */}
               {booking.status === 'scheduled' && (
@@ -227,6 +393,30 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                 </div>
               </div>
             </div>
+          ) : (
+              // Actions for Confirmation Flow
+              <div className="flex justify-between w-full gap-4">
+                  {step === 2 && (
+                      <button onClick={() => setStep(1)} className="px-6 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-50">
+                          Atrás
+                      </button>
+                  )}
+                  {step === 1 && (
+                      <button onClick={() => setIsConfirming(false)} className="px-6 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-50">
+                          Cancelar
+                      </button>
+                  )}
+                  
+                  {step === 1 ? (
+                      <button onClick={handleNextStep} className="flex-1 px-6 py-2 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 shadow-md">
+                          Siguiente: Pago
+                      </button>
+                  ) : (
+                      <button onClick={handleFinalize} className="flex-1 px-6 py-2 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-md">
+                          Finalizar y Guardar
+                      </button>
+                  )}
+              </div>
           )}
         </footer>
       </div>

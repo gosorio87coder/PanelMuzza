@@ -300,6 +300,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
         createdAt: bookingToEdit ? bookingToEdit.createdAt : new Date(), // Preserve original creation date or set to NOW
         status: bookingToEdit?.status, // Preserve existing status (e.g. completed)
         actualDuration: bookingToEdit?.actualDuration, // Preserve actual duration
+        bookingCode: bookingToEdit?.bookingCode // <--- CRITICAL FIX: Preserve the existing code when editing
     };
     
     let downPaymentSale: Sale | undefined = undefined;
@@ -354,6 +355,14 @@ const BookingForm: React.FC<BookingFormProps> = ({
                 <form id="booking-form-in-modal" onSubmit={handleSubmit} className="space-y-8 p-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
                     <h3 className="text-xl font-semibold text-slate-800 sm:col-span-2 lg:col-span-3">Detalles de la Cita</h3>
+                    
+                    {bookingToEdit && bookingToEdit.bookingCode && (
+                        <div className="sm:col-span-2 lg:col-span-3 bg-purple-50 border border-purple-200 p-3 rounded-lg flex items-center">
+                            <span className="font-bold text-purple-800 mr-2">Código de Reserva:</span>
+                            <span className="font-mono text-lg text-purple-900">{bookingToEdit.bookingCode}</span>
+                        </div>
+                    )}
+
                     <div>
                       <label htmlFor="specialist" className="block text-sm font-medium text-slate-600 mb-1">Especialista</label>
                       <select id="specialist" value={specialist} onChange={e => setSpecialist(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">

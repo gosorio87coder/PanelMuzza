@@ -21,7 +21,7 @@ export const PROCEDURES_BY_SERVICE: Record<string, string[]> = {
 export const SERVICE_DURATIONS: Record<string, number> = { // duration in minutes
   'Cejas': 90,
   'Retoque': 60,
-  'Lifting': 60,
+  'Lifting': 90,
   'Laminado': 60,
   'Otros': 60, // Pestañas otros
   'Laser 1': 30,
@@ -50,6 +50,7 @@ export const MOCK_CLIENTS = [
 export const SPECIALIST_COLORS: Record<string, { bg: string; text: string }> = {
     'Julissa': { bg: 'bg-pink-100', text: 'text-pink-800' },
     'Laura': { bg: 'bg-green-100', text: 'text-green-800' },
+    'D.G.': { bg: 'bg-blue-100', text: 'text-blue-800' },
     'Evaluación': { bg: 'bg-blue-100', text: 'text-blue-800' },
     'default': { bg: 'bg-slate-100', text: 'text-slate-800' },
 };

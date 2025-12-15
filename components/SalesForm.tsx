@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sale, Payment } from '../types';
 import { SOURCES, PAYMENT_METHODS, SERVICE_TYPES, PROCEDURES_BY_SERVICE } from '../constants';
@@ -41,6 +42,7 @@ const CreamPaymentModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onClo
                             className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
                             min="0"
                             step="0.01"
+                            onWheel={(e) => e.currentTarget.blur()}
                         />
                     </div>
                     <div>
@@ -393,7 +395,16 @@ const SalesForm: React.FC<SalesFormProps> = ({ isOpen, onClose, onSave, saleToEd
 
                         <div className="sm:col-span-2">
                             <label htmlFor="totalAmount" className="block text-sm font-medium text-slate-600 mb-1">Monto Total de Venta (S/)</label>
-                            <input type="number" id="totalAmount" value={totalAmount} onChange={e => setTotalAmount(e.target.value)} min="0" step="0.01" className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 ${errors.totalAmount ? 'border-red-500' : 'border-slate-300'}`} />
+                            <input 
+                                type="number" 
+                                id="totalAmount" 
+                                value={totalAmount} 
+                                onChange={e => setTotalAmount(e.target.value)} 
+                                min="0" 
+                                step="0.01" 
+                                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 ${errors.totalAmount ? 'border-red-500' : 'border-slate-300'}`} 
+                                onWheel={(e) => e.currentTarget.blur()}
+                            />
                              {errors.totalAmount && <p className="text-red-500 text-xs mt-1">{errors.totalAmount}</p>}
                         </div>
 
@@ -408,7 +419,18 @@ const SalesForm: React.FC<SalesFormProps> = ({ isOpen, onClose, onSave, saleToEd
                                 </div>
                                 <div className="sm:col-span-1">
                                     <label htmlFor={`amount-${index}`} className="block text-sm font-medium text-slate-600 mb-1">Monto (S/)</label>
-                                    <input type="number" id={`amount-${index}`} value={payment.amount} onChange={e => handlePaymentChange(index, 'amount', e.target.value)} disabled={payment.code === 'CREMA'} min="0" step="0.01" className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 ${payment.code === 'CREMA' ? 'bg-slate-200' : ''}`} required />
+                                    <input 
+                                        type="number" 
+                                        id={`amount-${index}`} 
+                                        value={payment.amount} 
+                                        onChange={e => handlePaymentChange(index, 'amount', e.target.value)} 
+                                        disabled={payment.code === 'CREMA'} 
+                                        min="0" 
+                                        step="0.01" 
+                                        className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 ${payment.code === 'CREMA' ? 'bg-slate-200' : ''}`} 
+                                        required 
+                                        onWheel={(e) => e.currentTarget.blur()}
+                                    />
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label htmlFor={`paymentCode-${index}`} className="block text-sm font-medium text-slate-600 mb-1">Código de Pago (Opcional)</label>

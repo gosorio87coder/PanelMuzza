@@ -8,7 +8,12 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false); // Toggle between login/signup
   const [name, setName] = useState(''); // For signup only
+  const [inviteCode, setInviteCode] = useState(''); // NEW: Invitation code
   const [error, setError] = useState<string | null>(null);
+
+  // Hardcoded security code for simple protection
+  // In a more advanced setup, this could be an Edge Function check
+  const SECRET_CODE = "MUZZA-TEAM"; 
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,6 +24,11 @@ const Login: React.FC = () => {
         if (!supabase) throw new Error("Error de conexión con Supabase");
 
         if (isSignUp) {
+            // SECURITY CHECK
+            if (inviteCode.trim().toUpperCase() !== SECRET_CODE) {
+                throw new Error("Código de invitación incorrecto. Solicítalo al administrador.");
+            }
+
             const { error } = await supabase.auth.signUp({
                 email,
                 password,
@@ -29,7 +39,7 @@ const Login: React.FC = () => {
                 }
             });
             if (error) throw error;
-            alert('Registro exitoso! Por favor inicia sesión.');
+            alert('Registro exitoso! Por favor revisa tu correo para confirmar tu cuenta antes de iniciar sesión.');
             setIsSignUp(false);
         } else {
             const { error } = await supabase.auth.signInWithPassword({
@@ -54,7 +64,7 @@ const Login: React.FC = () => {
         </div>
 
         <h2 className="text-xl font-semibold text-slate-800 mb-6 text-center">
-            {isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}
+            {isSignUp ? 'Crear Cuenta Privada' : 'Iniciar Sesión'}
         </h2>
 
         {error && (
@@ -65,17 +75,32 @@ const Login: React.FC = () => {
 
         <form onSubmit={handleAuth} className="space-y-4">
             {isSignUp && (
-                <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Nombre Completo</label>
-                    <input 
-                        type="text" 
-                        required 
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
-                        placeholder="Ej. Juan Perez"
-                    />
-                </div>
+                <>
+                    <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                        <label className="block text-xs font-bold text-purple-800 uppercase mb-1">Código de Invitación</label>
+                        <input 
+                            type="text" 
+                            required 
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+                            placeholder="Clave de acceso..."
+                        />
+                        <p className="text-[10px] text-purple-600 mt-1">Requerido para nuevos registros.</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Nombre Completo</label>
+                        <input 
+                            type="text" 
+                            required 
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+                            placeholder="Ej. Juan Perez"
+                        />
+                    </div>
+                </>
             )}
             
             <div>
@@ -113,10 +138,10 @@ const Login: React.FC = () => {
 
         <div className="mt-6 text-center text-sm">
             <button 
-                onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
+                onClick={() => { setIsSignUp(!isSignUp); setError(null); setInviteCode(''); }}
                 className="text-purple-600 hover:text-purple-800 font-semibold"
             >
-                {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+                {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿Eres del equipo? Regístrate aquí'}
             </button>
         </div>
       </div>

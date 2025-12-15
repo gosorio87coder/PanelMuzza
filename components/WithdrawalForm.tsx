@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Withdrawal } from '../types';
 
@@ -73,6 +74,7 @@ const WithdrawalForm: React.FC<WithdrawalFormProps> = ({ isOpen, onClose, onSave
                                 min="0.01"
                                 step="0.01"
                                 required
+                                onWheel={(e) => e.currentTarget.blur()}
                             />
                         </div>
                         <div>

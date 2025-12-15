@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Specialist, DaySchedule } from '../types';
+import { Specialist, DaySchedule, UserRole } from '../types';
 
 interface ConfigurationProps {
     specialists: Specialist[];
@@ -13,6 +13,9 @@ interface ConfigurationProps {
     setBookingGoals: (goals: Record<string, number>) => Promise<void>; // Updated to async
     clientGoals: Record<string, number>;
     setClientGoals: (goals: Record<string, number>) => Promise<void>; // Updated to async
+    userRole: UserRole;
+    onBulkDelete: () => Promise<void>;
+    onFactoryReset?: () => Promise<void>; // New prop for factory reset
 }
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -134,7 +137,10 @@ const Configuration: React.FC<ConfigurationProps> = ({
     weeklySchedule, setWeeklySchedule,
     salesGoals, setSalesGoals,
     bookingGoals, setBookingGoals,
-    clientGoals, setClientGoals
+    clientGoals, setClientGoals,
+    userRole,
+    onBulkDelete,
+    onFactoryReset
 }) => {
     const [newSpecialistName, setNewSpecialistName] = useState('');
 
@@ -164,12 +170,25 @@ const Configuration: React.FC<ConfigurationProps> = ({
             }
         });
     };
+    
+    const handleDangerDelete = () => {
+        const confirmText = prompt('Esta acción ELIMINARÁ todas las Ventas y Reservas etiquetadas como "Carga Masiva". Los Clientes NO se eliminarán.\n\nPara confirmar, escriba: BORRAR');
+        if (confirmText === 'BORRAR') {
+            onBulkDelete();
+        }
+    };
+    
+    const handleFactoryResetClick = () => {
+        if (onFactoryReset) {
+            onFactoryReset();
+        }
+    };
 
     const hourOptions = Array.from({ length: 24 }, (_, i) => i);
     const sortedDays = (Object.values(weeklySchedule) as DaySchedule[]).sort((a, b) => a.dayId - b.dayId);
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 pb-12">
             <h2 className="text-3xl font-bold text-slate-800">Configuración del Panel</h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -329,6 +348,46 @@ const Configuration: React.FC<ConfigurationProps> = ({
                     ))}
                 </div>
             </div>
+            
+            {/* Danger Zone - Admin Only */}
+            {userRole === 'admin' && (
+                <div className="bg-red-50 border border-red-200 p-6 rounded-xl shadow-lg mt-8">
+                    <h3 className="text-xl font-bold text-red-800 mb-2 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        Zona de Peligro
+                    </h3>
+                    <p className="text-red-700 text-sm mb-4">
+                        Acciones destructivas e irreversibles. Proceda con precaución.
+                    </p>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-red-100">
+                            <div>
+                                <span className="font-bold text-slate-800 block">Eliminar Carga Masiva</span>
+                                <span className="text-xs text-slate-500">Elimina todas las Ventas y Reservas importadas masivamente. No elimina Clientes.</span>
+                            </div>
+                            <button 
+                                onClick={handleDangerDelete}
+                                className="px-4 py-2 bg-orange-600 text-white font-bold rounded-lg shadow hover:bg-orange-700 focus:outline-none"
+                            >
+                                Borrar Importación
+                            </button>
+                        </div>
+                        
+                        <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-red-300 shadow-sm">
+                            <div>
+                                <span className="font-bold text-red-900 block">Restablecer de Fábrica (Eliminar Todo)</span>
+                                <span className="text-xs text-red-700">Elimina Ventas, Reservas, Gastos, Clientes y Seguimiento. Deja el sistema VACÍO.</span>
+                            </div>
+                            <button 
+                                onClick={handleFactoryResetClick}
+                                className="px-4 py-2 bg-red-700 text-white font-bold rounded-lg shadow hover:bg-red-800 focus:outline-none ring-2 ring-red-400 ring-offset-2"
+                            >
+                                RESET TOTAL
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

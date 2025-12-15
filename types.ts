@@ -31,10 +31,15 @@ export interface Sale {
   comments?: string;
   createdBy?: string; // ID of the user who created this
   createdByName?: string; // Name of the user (for display)
+  
+  // NEW FIELDS FOR CASH FLOW TRACKING
+  bookingId?: string; // Link to the parent booking
+  transactionType?: 'adelanto' | 'cierre' | 'producto' | 'venta'; // Context of the transaction
 }
 
 export interface Booking {
   id: string;
+  bookingCode?: string; // User friendly short code (e.g. 123456)
   specialist: string;
   serviceType: string;
   procedure: string;
@@ -45,6 +50,7 @@ export interface Booking {
   comments?: string;
   status?: 'scheduled' | 'completed' | 'cancelled' | 'noshow';
   actualDuration?: number;
+  reconfirmationStatus?: 'confirmed' | 'rejected'; // NEW: Reconfirmation status
   createdAt: Date;
   createdBy?: string; // ID of the user who created this
   createdByName?: string; // Name of the user

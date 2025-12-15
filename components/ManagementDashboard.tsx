@@ -367,36 +367,41 @@ const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
         const netProfit = totalSales - totalExpenses;
         const profitMargin = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
 
-        // DG Conversion
-        // 1. Find all "Evaluación" appointments (Specialist = Evaluación)
-        const dgClients = new Set<string>();
+        // UPDATED: Evaluation (formerly DG) Conversion
+        // 1. Find all "Evaluación" appointments (Specialist = 'D.G.' or 'Evaluación')
+        // Using Set to count unique clients
+        const evalClients = new Set<string>();
         allBookings.forEach(b => {
-            if (b.specialist === 'Evaluación' && b.status === 'completed') {
-                dgClients.add(b.client.dni);
+            const isEval = b.specialist === 'D.G.' || b.specialist === 'Evaluación' || b.specialist === 'Evaluacion';
+            // Count COMPLETED evaluations as the base denominator (those who received the evaluation)
+            if (isEval && b.status === 'completed') {
+                evalClients.add(b.client.dni);
             }
         });
 
-        // 2. Check if they returned for a PAID service (Not Evaluación)
+        // 2. Check if they returned for a PAID service (Not Evaluation/D.G.)
         let convertedCount = 0;
-        dgClients.forEach(dni => {
+        evalClients.forEach(dni => {
             const hasPaidBooking = allBookings.some(b => 
                 b.client.dni === dni && 
-                b.specialist !== 'Evaluación' && 
+                b.specialist !== 'D.G.' && 
+                b.specialist !== 'Evaluación' &&
+                b.specialist !== 'Evaluacion' &&
                 b.status !== 'cancelled'
             );
             if (hasPaidBooking) convertedCount++;
         });
 
-        const dgConversionRate = dgClients.size > 0 ? (convertedCount / dgClients.size) * 100 : 0;
+        const evalConversionRate = evalClients.size > 0 ? (convertedCount / evalClients.size) * 100 : 0;
 
         return {
             totalSales,
             totalExpenses,
             netProfit,
             profitMargin,
-            dgTotal: dgClients.size,
-            dgConverted: convertedCount,
-            dgConversionRate
+            evalTotal: evalClients.size,
+            evalConverted: convertedCount,
+            evalConversionRate
         };
     }, [expenses, allSales, allBookings, year, month]);
 
@@ -691,7 +696,7 @@ const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                         </div>
                     </div>
 
-                    {/* Source Distribution & DG Conversion Row */}
+                    {/* Source Distribution & Eval Conversion Row */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                         {/* Source Distribution Pie Chart */}
                         <div className="bg-white p-6 rounded-xl shadow-lg">
@@ -725,32 +730,32 @@ const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                             </div>
                         </div>
 
-                        {/* DG Conversion Card (Moved here) */}
+                        {/* Evaluation Conversion Card */}
                         <div className="bg-white p-6 rounded-xl shadow-lg border-t-4 border-purple-500">
                             <h3 className="text-lg font-bold text-slate-800 mb-2">Conversión de Evaluaciones</h3>
-                            <p className="text-sm text-slate-500 mb-6">Porcentaje de clientes que tuvieron una cita de "Evaluación" y regresaron para un servicio pagado.</p>
+                            <p className="text-sm text-slate-500 mb-6">Porcentaje de clientes que tuvieron una cita de "Evaluación" (antes D.G.) completada y regresaron para un servicio pagado.</p>
                             
                             <div className="flex items-center justify-around">
                                 <div className="relative w-32 h-32 flex items-center justify-center">
                                     <svg className="transform -rotate-90 w-32 h-32">
                                         <circle cx="64" cy="64" r="60" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
-                                        <circle cx="64" cy="64" r="60" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={377} strokeDashoffset={377 - (377 * financialData.dgConversionRate) / 100} className="text-purple-600 transition-all duration-1000" />
+                                        <circle cx="64" cy="64" r="60" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={377} strokeDashoffset={377 - (377 * financialData.evalConversionRate) / 100} className="text-purple-600 transition-all duration-1000" />
                                     </svg>
-                                    <span className="absolute text-xl font-bold text-slate-800">{financialData.dgConversionRate.toFixed(0)}%</span>
+                                    <span className="absolute text-xl font-bold text-slate-800">{financialData.evalConversionRate.toFixed(0)}%</span>
                                 </div>
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2">
                                         <div className="w-3 h-3 rounded-full bg-slate-300"></div>
-                                        <span className="text-sm text-slate-600">Total Diagnósticos: <strong>{financialData.dgTotal}</strong></span>
+                                        <span className="text-sm text-slate-600">Evaluaciones Completadas: <strong>{financialData.evalTotal}</strong></span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div className="w-3 h-3 rounded-full bg-purple-600"></div>
-                                        <span className="text-sm text-slate-600">Convirtieron: <strong>{financialData.dgConverted}</strong></span>
+                                        <span className="text-sm text-slate-600">Convirtieron: <strong>{financialData.evalConverted}</strong></span>
                                     </div>
                                 </div>
                             </div>
                             <div className="mt-6 p-3 bg-purple-50 rounded-lg text-xs text-purple-800">
-                                <strong>Nota:</strong> Se considera "conversión" si un cliente atendido en "Evaluación" tiene una cita posterior completada con otro especialista.
+                                <strong>Nota:</strong> Se cuenta como "conversión" si el cliente tiene una cita posterior con otro especialista que no sea Evaluación/D.G.
                             </div>
                         </div>
                     </div>
