@@ -57,6 +57,9 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
     // NEW: Service Type Filter
     const [serviceTypeFilter, setServiceTypeFilter] = useState<'TODOS' | 'CEJAS' | 'LASER'>('TODOS');
 
+    // NEW: Search State
+    const [searchTerm, setSearchTerm] = useState('');
+
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editNotes, setEditNotes] = useState('');
 
@@ -69,7 +72,7 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
     // Reset selection when filters change to avoid accidental actions on hidden items
     useEffect(() => {
         setSelectedIds(new Set());
-    }, [activeFilter, selectedYear, selectedMonth, serviceTypeFilter]);
+    }, [activeFilter, selectedYear, selectedMonth, serviceTypeFilter, searchTerm]);
 
     const eligibleClients = useMemo(() => {
         // Helper to check if a record is from Bulk Upload
@@ -89,6 +92,7 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
                 client: b.client,
                 serviceType: b.serviceType,
                 procedure: b.procedure,
+                bookingCode: b.bookingCode, // Included for search
                 isLegacy: false
             }));
 
@@ -103,6 +107,7 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
                 client: s.client,
                 serviceType: s.serviceType,
                 procedure: s.procedure,
+                bookingCode: undefined,
                 isLegacy: true
             }));
 
@@ -162,6 +167,7 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
                 client: event.client,
                 serviceType: event.serviceType,
                 procedure: event.procedure,
+                bookingCode: event.bookingCode,
                 eventDate,
                 targetDate,
                 status,
@@ -204,6 +210,17 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
         const now = new Date();
         
         return eligibleClients.filter(item => {
+            // 0. Search Filter
+            if (searchTerm.trim()) {
+                const lowerSearch = searchTerm.toLowerCase();
+                const matchName = item.client.name.toLowerCase().includes(lowerSearch);
+                const matchDni = item.client.dni.includes(lowerSearch);
+                const matchPhone = item.client.phone.includes(lowerSearch);
+                const matchCode = item.bookingCode?.toLowerCase().includes(lowerSearch);
+                
+                if (!matchName && !matchDni && !matchPhone && !matchCode) return false;
+            }
+
             // 1. Time Filters (Year & Month)
             const itemDate = item.eventDate;
             const matchYear = itemDate.getFullYear() === selectedYear;
@@ -238,7 +255,7 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
             if (activeFilter === 'TODOS') return true;
             return item.status === activeFilter;
         });
-    }, [eligibleClients, activeFilter, selectedYear, selectedMonth, serviceTypeFilter]);
+    }, [eligibleClients, activeFilter, selectedYear, selectedMonth, serviceTypeFilter, searchTerm]);
 
     const handleStatusChange = (saleId: string, newStatus: FollowUpStatus) => {
         const currentTracking = tracking[saleId] || { status: 'PENDIENTE' };
@@ -395,6 +412,15 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
                         </div>
                         
                         <div className="flex flex-wrap items-center gap-2">
+                            {/* NEW: Search Bar */}
+                            <input 
+                                type="text"
+                                placeholder="Buscar DNI, Cel, Nombre o Código..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-purple-500 focus:border-purple-500 bg-white w-full sm:w-64 shadow-sm"
+                            />
+
                             {/* Check Admin Role for Bulk Archive */}
                             {currentUserRole === 'admin' && selectedIds.size > 0 && activeFilter !== 'ARCHIVADOS' && (
                                 <button
@@ -402,7 +428,7 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
                                     className="px-4 py-2 bg-slate-600 text-white font-bold rounded-lg shadow-md hover:bg-slate-700 flex items-center justify-center space-x-2 mr-2 animate-fade-in"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-                                    <span>Archivar Seleccionados ({selectedIds.size})</span>
+                                    <span>Archivar ({selectedIds.size})</span>
                                 </button>
                             )}
 
@@ -492,7 +518,7 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                            {filteredList.map(({ id, client, serviceType, procedure, eventDate, targetDate, status, trackingData, hasFutureBooking, isLaser }) => {
+                            {filteredList.map(({ id, client, serviceType, procedure, eventDate, targetDate, status, trackingData, hasFutureBooking, isLaser, bookingCode }) => {
                                 const daysUntilTarget = Math.ceil((targetDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
                                 const isOverdue = daysUntilTarget < 0;
                                 const isSelected = selectedIds.has(id);
@@ -512,7 +538,7 @@ const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({ sales, bookings, 
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="font-semibold text-slate-800">{client.name}</div>
-                                            <div className="text-xs text-slate-500">DNI: {client.dni}</div>
+                                            <div className="text-xs text-slate-500">DNI: {client.dni} {bookingCode && <span className="ml-2 text-purple-600 font-mono font-bold">#{bookingCode}</span>}</div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isLaser ? 'bg-red-100 text-red-800' : 'bg-purple-100 text-purple-800'}`}>

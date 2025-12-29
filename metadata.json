@@ -1,5 +1,5 @@
 {
-  "name": "Muzza Booking App",
+  "name": "Nuevo Muzza Webapp",
   "description": "A dashboard to manage sales and bookings for Muzza, a beauty salon. It includes forms for registering sales and scheduling appointments, with features for handling client data, services, payments, and potential scheduling conflicts.",
   "requestFramePermissions": []
 }

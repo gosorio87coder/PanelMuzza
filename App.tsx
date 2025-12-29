@@ -13,13 +13,14 @@ import BookingDetailModal from './components/BookingDetailModal';
 import ManagementDashboard from './components/ManagementDashboard';
 import FollowUpDashboard from './components/FollowUpDashboard';
 import ExpensesDashboard from './components/ExpensesDashboard';
+import CommissionsDashboard from './components/CommissionsDashboard'; // NEW IMPORT
 import Login from './components/Login';
 import { SERVICE_TYPES, PROCEDURES_BY_SERVICE, CASH_METHODS, DIGITAL_METHODS, CARD_METHODS, DEFAULT_EXPENSE_CATEGORIES, MONTHS, YEARS, SERVICE_TYPE_COLORS } from './constants';
 
 // Declare XLSX from the script loaded in index.html
 declare const XLSX: any;
 
-type View = 'home' | 'sales' | 'bookings' | 'cashControl' | 'configuration' | 'management' | 'followUp' | 'expenses';
+type View = 'home' | 'sales' | 'bookings' | 'cashControl' | 'configuration' | 'management' | 'followUp' | 'expenses' | 'commissions'; // UPDATED TYPE
 type BookingView = 'day' | '3day' | 'week' | 'month';
 type BookingDisplayMode = 'calendar' | 'list'; 
 
@@ -558,6 +559,7 @@ const App: React.FC = () => {
                       service_type: sale.serviceType,
                       procedure_name: sale.procedure,
                       payments: sale.payments,
+                      /* Fixed: Change sale.cream_sold to sale.creamSold */
                       cream_sold: sale.creamSold,
                       comments: 'Carga Masiva',
                       created_by: session.user.id
@@ -587,6 +589,7 @@ const App: React.FC = () => {
                       start_time: booking.startTime.toISOString(),
                       end_time: booking.endTime.toISOString(),
                       specialist: booking.specialist,
+                      /* Fixed: Change booking.service_type to booking.serviceType */
                       service_type: booking.serviceType,
                       procedure_name: booking.procedure,
                       status: 'completed',
@@ -770,6 +773,7 @@ const App: React.FC = () => {
           service_type: updatedBooking.serviceType,
           procedure_name: updatedBooking.procedure,
           status: updatedBooking.status,
+          /* Fixed: Use updatedBooking.actualDuration and updatedBooking.downPayment */
           actual_duration: updatedBooking.actualDuration,
           comments: updatedBooking.comments,
           down_payment: updatedBooking.downPayment
@@ -926,7 +930,7 @@ const App: React.FC = () => {
     if (!client || !session) return;
     const { data, error } = await client.from('withdrawals').insert({
         amount: withdrawal.amount,
-        person_in_charge: withdrawal.personInCharge,
+        personInCharge: withdrawal.personInCharge,
         notes: withdrawal.notes,
         timestamp: withdrawal.timestamp.toISOString(),
         created_by: session.user.id
@@ -1040,6 +1044,7 @@ const App: React.FC = () => {
           day_id: d.dayId,
           name: d.name,
           is_open: d.isOpen,
+          // Fixed: using properties from DaySchedule interface (startHour, endHour, hasLunch)
           start_hour: d.startHour,
           end_hour: d.endHour,
           has_lunch: d.hasLunch,
@@ -1177,16 +1182,6 @@ const App: React.FC = () => {
     setEditingBooking(booking);
     setIsBookingModalOpen(true);
   };
-  
-  // NEW: Updated Confirm Logic to support financial closing
-  const handleConfirmBookingClick = (booking: Booking, duration: number) => {
-      // In the new flow, the modal handles the logic and passes data back here?
-      // Actually, to keep it simple, BookingDetailModal will pass the data
-      // For now, this signature needs to support the final sale
-      setViewingBooking(null);
-      // Logic handled inside BookingDetailModal but final save triggers confirmBooking
-      // We will update this function signature in the component prop
-  }
   
   // Actually confirm booking with payment
   const executeBookingConfirmation = (booking: Booking, duration: number, finalPayment?: Sale) => {
@@ -1556,13 +1551,14 @@ const App: React.FC = () => {
   );
   
   const HomeIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>;
-  const SalesIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01m0 12v1a2 2 0 002 2h2a2 2 0 00-2-2h-2.003A2 2 0 0112 13v-1m-4.003 4H12" /></svg>;
+  const SalesIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>;
   const BookingsIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
   const CashControlIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>;
   const ConfigIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
   const ManagementIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>;
-  const FollowUpIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 17l4 4 4-4m-4-5v9" /></svg>;
+  const FollowUpIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>;
   const ExpenseIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
+  const CommissionsIcon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>; // NEW ICON
 
   const viewTitles: Record<View, string> = {
     home: 'Inicio',
@@ -1572,7 +1568,8 @@ const App: React.FC = () => {
     configuration: 'Configuración',
     management: 'Control de Gestión',
     followUp: 'Seguimiento',
-    expenses: 'Control de Gastos'
+    expenses: 'Control de Gastos',
+    commissions: 'Comisiones' // UPDATED TITLES
   };
 
   // If loading Auth, show spinner
@@ -1632,6 +1629,7 @@ const App: React.FC = () => {
             {userProfile?.role === 'admin' && (
                 <>
                     <SideBarButton view="management" label="Control de Gestión" icon={ManagementIcon} />
+                    <SideBarButton view="commissions" label="Comisiones" icon={CommissionsIcon} /> {/* NEW BUTTON */}
                     <SideBarButton view="expenses" label="Control de Gastos" icon={ExpenseIcon} />
                     <SideBarButton view="configuration" label="Configuración" icon={ConfigIcon} />
                 </>
@@ -1683,7 +1681,12 @@ const App: React.FC = () => {
                                   const count = bookings.filter(b => {
                                       const d = new Date(b.startTime);
                                       const now = new Date();
-                                      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && b.specialist === spec;
+                                      // EXCLUDE 'Bloqueo' from start panel count
+                                      return d.getDate() === now.getDate() && 
+                                             d.getMonth() === now.getMonth() && 
+                                             d.getFullYear() === now.getFullYear() && 
+                                             b.specialist === spec &&
+                                             b.serviceType !== 'Bloqueo';
                                   }).length;
                                   return (
                                       <div key={spec} className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 flex items-center space-x-2">
@@ -1736,6 +1739,93 @@ const App: React.FC = () => {
                                   </span>
                               </div>
                           </div>
+                      </div>
+                  </div>
+
+                  {/* INCREMENTAL SECTION: Next 3 Days Agenda Reference */}
+                  <div>
+                      <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Ocupación Próximos 3 Días Laborables
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {(() => {
+                            const nextThreeDays = [];
+                            let checkDate = new Date();
+                            checkDate.setHours(0,0,0,0);
+
+                            while(nextThreeDays.length < 3) {
+                                const dayId = checkDate.getDay() === 0 ? 7 : checkDate.getDay();
+                                const schedule = weeklySchedule[dayId];
+                                if (schedule && schedule.isOpen) {
+                                    nextThreeDays.push(new Date(checkDate));
+                                }
+                                checkDate.setDate(checkDate.getDate() + 1);
+                            }
+
+                            return nextThreeDays.map(date => {
+                                const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                                const dayBookings = bookings.filter(b => {
+                                    const d = new Date(b.startTime);
+                                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` === dateKey;
+                                });
+
+                                return (
+                                    <div key={dateKey} className="bg-white rounded-2xl shadow-md p-5 border border-slate-100 flex flex-col h-full">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div>
+                                                <p className="text-xs font-black text-purple-600 uppercase tracking-tighter">{date.toLocaleDateString('es-ES', { weekday: 'long' })}</p>
+                                                <p className="text-lg font-bold text-slate-800">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}</p>
+                                            </div>
+                                            <div className="h-10 w-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" /></svg>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="space-y-3 flex-grow">
+                                            {activeSpecialists.map(spec => {
+                                                const specB = dayBookings.filter(b => b.specialist === spec && b.serviceType !== 'Bloqueo');
+                                                const totalHours = specB.reduce((sum, b) => {
+                                                    const d = (new Date(b.endTime).getTime() - new Date(b.startTime).getTime()) / 3600000;
+                                                    return sum + d;
+                                                }, 0);
+                                                
+                                                // Estimate available slots
+                                                const dayId = date.getDay() === 0 ? 7 : date.getDay();
+                                                const sch = weeklySchedule[dayId];
+                                                const workHours = sch ? (sch.endHour - sch.startHour - (sch.hasLunch ? 1 : 0)) : 8;
+                                                const usage = Math.min(Math.round((totalHours / workHours) * 100), 100);
+
+                                                return (
+                                                    <div key={spec} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                                        <div className="flex justify-between items-center mb-2">
+                                                            <span className="text-sm font-bold text-slate-700">{spec}</span>
+                                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${usage > 80 ? 'bg-red-100 text-red-700' : usage > 50 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                                                                {usage}% Lleno
+                                                            </span>
+                                                        </div>
+                                                        <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                                            <div className={`h-full transition-all duration-1000 ${usage > 80 ? 'bg-red-500' : usage > 50 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${usage}%` }}></div>
+                                                        </div>
+                                                        <div className="mt-2 flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                                            <span>{specB.length} Citas</span>
+                                                            <span>~{Math.max(0, Math.floor(workHours - totalHours))}h Libres</span>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                        <button 
+                                            /* Fixed: Removed undefined setCurrentTime call */
+                                            onClick={() => { setActiveView('bookings'); }}
+                                            className="mt-4 w-full py-2 text-xs font-bold text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors uppercase tracking-widest"
+                                        >
+                                            Ver en Calendario
+                                        </button>
+                                    </div>
+                                )
+                            })
+                        })()}
                       </div>
                   </div>
               </div>
@@ -1832,6 +1922,7 @@ const App: React.FC = () => {
                                         <th className="px-4 py-3">Servicio</th>
                                         <th className="px-4 py-3">Especialista</th>
                                         <th className="px-4 py-3">Estado</th>
+                                        <th className="px-4 py-3 text-xs italic">Registrado por</th>
                                         <th className="px-4 py-3 text-center">Acción</th>
                                     </tr>
                                 </thead>
@@ -1843,7 +1934,7 @@ const App: React.FC = () => {
                                             <td className="px-4 py-3">{b.startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
                                             <td className="px-4 py-3">
                                                 <div className="font-semibold text-slate-800">{b.client.name}</div>
-                                                <div className="text-xs text-slate-400">{b.client.dni}</div>
+                                                <div className="text-xs text-slate-500">DNI: {b.client.dni}</div>
                                             </td>
                                             <td className="px-4 py-3">{b.serviceType} <span className="text-xs text-slate-400 block">{b.procedure}</span></td>
                                             <td className="px-4 py-3">{b.specialist}</td>
@@ -1858,6 +1949,7 @@ const App: React.FC = () => {
                                                      b.status === 'noshow' ? 'No Vino' : 'Programada'}
                                                 </span>
                                             </td>
+                                            <td className="px-4 py-3 text-xs italic">{b.createdByName || 'N/A'}</td>
                                             <td className="px-4 py-3 text-center">
                                                 <button onClick={() => handleBookingClick(b)} className="text-purple-600 hover:text-purple-800 font-bold hover:underline">
                                                     Ver
@@ -1866,7 +1958,7 @@ const App: React.FC = () => {
                                         </tr>
                                     ))}
                                     {filteredBookings.length === 0 && (
-                                        <tr><td colSpan={8} className="p-8 text-center text-slate-400">No se encontraron reservas.</td></tr>
+                                        <tr><td colSpan={9} className="p-8 text-center text-slate-400">No se encontraron reservas.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -1890,7 +1982,7 @@ const App: React.FC = () => {
                         onClick={() => { setEditingSale(null); setIsSalesModalOpen(true); }}
                         className="flex-1 sm:flex-none px-3 py-2.5 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-transform transform hover:scale-105 flex items-center justify-center space-x-2"
                       >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011+1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                           <span className="hidden sm:inline">Venta Directa</span>
                       </button>
                        <button 
@@ -1926,7 +2018,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
                  <div className="bg-white p-5 rounded-xl shadow-lg flex items-center space-x-4">
-                    <div className="p-3 rounded-full bg-blue-100 text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg></div>
+                    <div className="p-3 rounded-full bg-blue-100 text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 00-2-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg></div>
                     <div>
                         <p className="text-sm text-slate-500 font-semibold"># Transacciones</p>
                         <p className="text-3xl font-bold text-slate-800">{salesStats.totalTransactions}</p>
@@ -2154,7 +2246,7 @@ const App: React.FC = () => {
                               onClick={handleDownloadCashControl}
                               className="px-4 py-2 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition-transform hover:scale-105 flex items-center gap-2"
                           >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                               <span>Descargar</span>
                           </button>
                       </div>
@@ -2251,6 +2343,12 @@ const App: React.FC = () => {
                   expenses={expenses}
               />
           )}
+          {activeView === 'commissions' && (
+              <CommissionsDashboard 
+                  allSales={sales} 
+                  allBookings={bookings} 
+              />
+          )}
           {activeView === 'followUp' && (
               <FollowUpDashboard
                   sales={sales}
@@ -2337,4 +2435,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
